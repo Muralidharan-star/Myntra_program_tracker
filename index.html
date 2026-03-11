@@ -171,7 +171,7 @@ function LineChartSVG({data,height=160}){
 }
 
 const today=new Date(),todayStr=today.toISOString().split("T")[0];
-const EMPTY={title:"",type:TYPES[0],owner:MEMBERS[0],startDate:todayStr,dueDate:"",closedDate:"",status:"Not Started",impact:"",riskBlocker:"",progress:0,notes:"",manualComment:""};
+const EMPTY={title:"",type:TYPES[0],owner:MEMBERS[0],controlMonth:MONTHS[today.getMonth()],controlYear:String(today.getFullYear()),startDate:todayStr,dueDate:"",closedDate:"",status:"Not Started",impact:"",riskBlocker:"",progress:0,notes:"",manualComment:""};
 
 const S={
   wrap:{minHeight:"100vh",background:"#0a0a0a",padding:"20px",animation:"fadeIn 0.4s ease"},
@@ -228,9 +228,8 @@ function App(){
   // Filter by start date month/year
   const filtered=useMemo(()=>items.filter(i=>{
     const ac=getAutoComment(i);
-    const startD=i.startDate?new Date(i.startDate):null;
-    const monthMatch=filters.month==="All"||!startD||(startD.toLocaleDateString("en-IN",{month:"short"})===filters.month);
-    const yearMatch=filters.year==="All"||!startD||(String(startD.getFullYear())===filters.year);
+    const monthMatch=filters.month==="All"||(i.controlMonth===filters.month);
+    const yearMatch=filters.year==="All"||(i.controlYear===filters.year);
     return(
       (filters.owner==="All"||i.owner===filters.owner)&&
       (filters.type==="All"||i.type===filters.type)&&
@@ -250,15 +249,14 @@ function App(){
     wip:filtered.filter(i=>getAutoComment(i).label.includes("WIP")).length,
   }),[filtered]);
 
-  // Chart data — status breakdown
+  // Chart data — all driven by filtered
   const statusChartData=useMemo(()=>[
-    {label:"Open",value:stats.open,color:"#818cf8"},
-    {label:"Closed OK",value:stats.closedOK,color:"#34d399"},
-    {label:"Breached",value:stats.breached,color:"#fbbf24"},
-    {label:"WIP",value:stats.wip,color:"#818cf8"},
-  ],[stats]);
+    {label:"Open",value:filtered.filter(i=>i.status!=="Completed").length,color:"#818cf8"},
+    {label:"Closed OK",value:filtered.filter(i=>getAutoComment(i).label==="Closed within due date").length,color:"#34d399"},
+    {label:"Breached",value:filtered.filter(i=>getAutoComment(i).label.includes("breached")).length,color:"#fbbf24"},
+    {label:"WIP",value:filtered.filter(i=>getAutoComment(i).label.includes("WIP")).length,color:"#e11d74"},
+  ],[filtered]);
 
-  // Chart data — breach by member
   const memberBreachData=useMemo(()=>MEMBERS.map(m=>({
     name:m.split(" ")[0],
     total:filtered.filter(i=>i.owner===m).length,
@@ -267,18 +265,22 @@ function App(){
     wip:filtered.filter(i=>i.owner===m&&getAutoComment(i).label.includes("WIP")).length,
   })).filter(m=>m.total>0),[filtered]);
 
-  // Chart data — trend by month
+  // Trend — if a specific year is selected show all 12 months of that year,
+  // otherwise show last 6 months across years
   const trendData=useMemo(()=>{
-    const last6=[...MONTHS.map(m=>({m,y:"2025"})),...MONTHS.map(m=>({m,y:"2026"}))];
-    const todayIdx=last6.findIndex(x=>x.m===MONTHS[today.getMonth()]&&x.y===String(today.getFullYear()));
-    return last6.slice(Math.max(0,todayIdx-5),todayIdx+1).map(({m,y})=>{
-      const its=items.filter(i=>{
-        const d=i.startDate?new Date(i.startDate):null;
-        return d&&d.toLocaleDateString("en-IN",{month:"short"})===m&&String(d.getFullYear())===y;
-      });
+    let periods=[];
+    if(filters.year!=="All"){
+      periods=MONTHS.map(m=>({m,y:filters.year}));
+    } else {
+      const all=[...MONTHS.map(m=>({m,y:"2025"})),...MONTHS.map(m=>({m,y:"2026"}))];
+      const todayIdx=all.findIndex(x=>x.m===MONTHS[today.getMonth()]&&x.y===String(today.getFullYear()));
+      periods=all.slice(Math.max(0,todayIdx-5),todayIdx+1);
+    }
+    return periods.map(({m,y})=>{
+      const its=filtered.filter(i=>i.controlMonth===m&&i.controlYear===y);
       return{month:m,total:its.length,closed:its.filter(i=>getAutoComment(i).label==="Closed within due date").length,breached:its.filter(i=>getAutoComment(i).label.includes("breached")).length};
     });
-  },[items]);
+  },[filtered,filters.year]);
 
   const memberSummary=useMemo(()=>{
     const map={};
@@ -415,7 +417,7 @@ function App(){
         <div style={{...S.card,overflowX:"auto"}}>
           <table style={{minWidth:1350}}>
             <thead>
-              <tr>{["Program","Type","Owner","Start","Due Date","Closed","Ageing","Status","Progress","₹ Impact","Comment","Blocker",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+              <tr>{["Program","Type","Owner","Control Month","Start","Due Date","Closed","Ageing","Status","Progress","₹ Impact","Comment","Blocker",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {filtered.map(item=>{
@@ -433,6 +435,10 @@ function App(){
                       </td>
                       <td style={S.td}><Bdg m={TYPE_COLORS[item.type]}>{item.type}</Bdg></td>
                       <td style={{...S.td,whiteSpace:"nowrap"}}>{item.owner}</td>
+                      <td style={{...S.td,whiteSpace:"nowrap"}}>
+                        <span style={{fontSize:12,fontWeight:700,color:"#e11d74"}}>{item.controlMonth||"—"}</span>
+                        <span style={{fontSize:11,color:"#555",marginLeft:4}}>{item.controlYear||""}</span>
+                      </td>
                       <td style={{...S.td,fontSize:11,whiteSpace:"nowrap",color:"#888"}}>{fmtD(item.startDate)}</td>
                       <td style={{...S.td,fontSize:11,whiteSpace:"nowrap",color:item.dueDate&&new Date(item.dueDate)<new Date()&&item.status!=="Completed"?"#f87171":"#ccc"}}>{fmtD(item.dueDate)}</td>
                       <td style={{...S.td,fontSize:11,whiteSpace:"nowrap",color:"#34d399"}}>{fmtD(item.closedDate)}</td>
@@ -592,6 +598,17 @@ function App(){
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 <div><label style={S.lbl}>Type</label><select value={form.type||""} onChange={e=>f("type",e.target.value)} style={S.inp}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
                 <div><label style={S.lbl}>Owner</label><select value={form.owner||""} onChange={e=>f("owner",e.target.value)} style={S.inp}>{MEMBERS.map(m=><option key={m}>{m}</option>)}</select></div>
+              </div>
+              {/* Control Month */}
+              <div>
+                <label style={S.lbl}>Program / Control Month</label>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <select value={form.controlMonth||""} onChange={e=>f("controlMonth",e.target.value)} style={S.inp}>
+                    {MONTHS.map(m=><option key={m}>{m}</option>)}
+                  </select>
+                  <input placeholder="Year e.g. 2026" value={form.controlYear||""} onChange={e=>f("controlYear",e.target.value)} style={S.inp} maxLength={4}/>
+                </div>
+                <div style={{fontSize:10,color:"#555",marginTop:4}}>This is the month this program/control belongs to — drives charts and filters</div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
                 <div><label style={S.lbl}>Start Date</label><input type="date" value={form.startDate||""} onChange={e=>f("startDate",e.target.value)} style={S.inp}/></div>
