@@ -20,7 +20,6 @@ table{border-collapse:collapse;width:100%}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@media print{.no-print{display:none!important}}
 </style>
 </head>
 <body>
@@ -28,6 +27,7 @@ table{border-collapse:collapse;width:100%}
 <script type="text/babel">
 const{useState,useMemo,useEffect,useCallback}=React;
 
+// ── Supabase ──────────────────────────────────────────────────────────────
 const SB_URL="https://fhmjyavhnkrioqamtuvw.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZobWp5YXZobmtyaW9xYW10dXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMTAxNTYsImV4cCI6MjA4ODc4NjE1Nn0.8FCECJ_vIvCimJm4d8a-6y_cIHjO9knEwCnJw-azrXo";
 const H={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`};
@@ -36,42 +36,35 @@ async function dbInsert(row){const r=await fetch(`${SB_URL}/rest/v1/programs`,{m
 async function dbUpdate(id,row){const r=await fetch(`${SB_URL}/rest/v1/programs?id=eq.${id}`,{method:"PATCH",headers:{...H,"Prefer":"return=representation"},body:JSON.stringify(row)});if(!r.ok)throw new Error(await r.text());}
 async function dbDelete(id){const r=await fetch(`${SB_URL}/rest/v1/programs?id=eq.${id}`,{method:"DELETE",headers:H});if(!r.ok)throw new Error(await r.text());}
 
+// ── Constants ─────────────────────────────────────────────────────────────
 const ROLES={"Muralidharan":"admin","Piyush":"admin","Fareed":"edit","Shivendra":"edit","Sesirekha":"edit","Gurutej":"view"};
 const MEMBERS=Object.keys(ROLES);
 const TYPES=["Monthly Control","AR Collaboration","Ad Hoc Investigation","Stakeholder Review"];
 const STATUSES=["Not Started","In Progress","Blocked","Completed"];
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const YEARS=["2024","2025","2026","2027"];
+const COMMENT_TYPES=["All","Not Started","Closed within due date","Closed — due date breached","WIP — within due date","WIP — due date breached"];
 
 const STATUS_COLORS={"Not Started":{bg:"#2a2a2a",text:"#aaa",dot:"#aaa"},"In Progress":{bg:"#1a1a3e",text:"#818cf8",dot:"#818cf8"},"Blocked":{bg:"#3e1a1a",text:"#f87171",dot:"#f87171"},"Completed":{bg:"#1a3e2a",text:"#34d399",dot:"#34d399"}};
 const TYPE_COLORS={"Monthly Control":{bg:"#2d1a3e",text:"#c084fc"},"AR Collaboration":{bg:"#3e2a1a",text:"#fb923c"},"Ad Hoc Investigation":{bg:"#3e3a1a",text:"#facc15"},"Stakeholder Review":{bg:"#1a3a3e",text:"#22d3ee"}};
 
-// Comment types
-const COMMENT_TYPES=["All","Closed within due date","Closed — due date breached","WIP — within due date","WIP — due date breached","Not Started"];
-const COMMENT_META={
-  "Closed within due date":{color:"#34d399",bg:"#1a3e2a",icon:"✅"},
-  "Closed — due date breached":{color:"#fbbf24",bg:"#3e2a00",icon:"⚠️"},
-  "WIP — within due date":{color:"#818cf8",bg:"#1a1a3e",icon:"🔵"},
-  "WIP — due date breached":{color:"#f87171",bg:"#3e1a1a",icon:"🔴"},
-  "Not Started":{color:"#aaa",bg:"#2a2a2a",icon:"⚪"},
-};
-
+// ── Logic ─────────────────────────────────────────────────────────────────
 function getAutoComment(item){
   const today=new Date();today.setHours(0,0,0,0);
   const due=item.dueDate?new Date(item.dueDate):null;
   const closed=item.closedDate?new Date(item.closedDate):null;
   if(due)due.setHours(0,0,0,0);
   if(closed)closed.setHours(0,0,0,0);
-  if(item.status==="Not Started")return{label:"Not Started",...COMMENT_META["Not Started"]};
+  if(item.status==="Not Started")return{label:"Not Started",color:"#aaa",bg:"#2a2a2a",icon:"⚪"};
   if(item.status==="Completed"){
-    if(!due||!closed)return{label:"Completed",color:"#34d399",bg:"#1a3e2a",icon:"✅"};
-    if(closed<=due)return{label:"Closed within due date",...COMMENT_META["Closed within due date"]};
-    return{label:"Closed — due date breached",...COMMENT_META["Closed — due date breached"]};
+    if(!due||!closed)return{label:"Closed within due date",color:"#34d399",bg:"#1a3e2a",icon:"✅"};
+    if(closed<=due)return{label:"Closed within due date",color:"#34d399",bg:"#1a3e2a",icon:"✅"};
+    return{label:"Closed — due date breached",color:"#fbbf24",bg:"#3e2a00",icon:"⚠️"};
   }
   if(item.status==="In Progress"||item.status==="Blocked"){
-    if(!due)return{label:"WIP — within due date",...COMMENT_META["WIP — within due date"]};
-    if(today<=due)return{label:"WIP — within due date",...COMMENT_META["WIP — within due date"]};
-    return{label:"WIP — due date breached",...COMMENT_META["WIP — due date breached"]};
+    if(!due)return{label:"WIP — within due date",color:"#818cf8",bg:"#1a1a3e",icon:"🔵"};
+    if(today<=due)return{label:"WIP — within due date",color:"#818cf8",bg:"#1a1a3e",icon:"🔵"};
+    return{label:"WIP — due date breached",color:"#f87171",bg:"#3e1a1a",icon:"🔴"};
   }
   return{label:"—",color:"#aaa",bg:"#2a2a2a",icon:""};
 }
@@ -84,99 +77,14 @@ function getAgeing(item){
   return days>=0?`${days}d`:"—";
 }
 
-// SVG Charts
-function BarChartSVG({data,height=180}){
-  const max=Math.max(...data.map(d=>d.value),1);
-  const bw=Math.floor(280/data.length)-8;
-  return(
-    <svg width="100%" viewBox={`0 0 320 ${height+50}`} style={{overflow:"visible"}}>
-      {[0,0.5,1].map((t,i)=>(
-        <g key={i}>
-          <line x1="30" y1={height-(t*height)+5} x2="310" y2={height-(t*height)+5} stroke="#1e1e1e" strokeWidth="1"/>
-          <text x="25" y={height-(t*height)+9} fontSize="8" fill="#555" textAnchor="end">{Math.round(t*max)}</text>
-        </g>
-      ))}
-      {data.map((d,i)=>{
-        const h=Math.max((d.value/max)*height,d.value>0?4:0);
-        const x=30+i*(bw+8);
-        return(
-          <g key={i}>
-            <rect x={x} y={height-h+5} width={bw} height={h} fill={d.color} rx="3" opacity="0.9"/>
-            <text x={x+bw/2} y={height-h} fontSize="9" fill={d.color} textAnchor="middle" fontWeight="700">{d.value}</text>
-            <text x={x+bw/2} y={height+18} fontSize="8" fill="#666" textAnchor="middle">{d.label.length>10?d.label.substring(0,9)+"…":d.label}</text>
-            <title>{d.label}: {d.value}</title>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
+const todayD=new Date(),todayStr=todayD.toISOString().split("T")[0];
+const EMPTY={title:"",type:TYPES[0],owner:MEMBERS[0],controlMonth:MONTHS[todayD.getMonth()],controlYear:String(todayD.getFullYear()),startDate:todayStr,dueDate:"",closedDate:"",status:"Not Started",impact:"",riskBlocker:"",progress:0,notes:"",manualComment:""};
 
-function HBarChartSVG({data,height=200}){
-  const max=Math.max(...data.map(d=>d.total),1);
-  const bh=22,gap=6;
-  return(
-    <svg width="100%" viewBox={`0 0 320 ${data.length*(bh+gap)+20}`}>
-      {data.map((d,i)=>{
-        const y=i*(bh+gap);
-        const closedW=(d.closed/max)*220,breachW=(d.breached/max)*220,wipW=(d.wip/max)*220;
-        return(
-          <g key={i}>
-            <text x="58" y={y+bh-6} fontSize="10" fill="#888" textAnchor="end">{d.name}</text>
-            <rect x="62" y={y} width={Math.max(closedW,0)} height={bh/3} fill="#34d399" rx="2"/>
-            <rect x="62" y={y+bh/3} width={Math.max(breachW,0)} height={bh/3} fill="#fbbf24" rx="2"/>
-            <rect x="62" y={y+bh*2/3} width={Math.max(wipW,0)} height={bh/3} fill="#818cf8" rx="2"/>
-            <text x={65+Math.max(closedW,breachW,wipW)} y={y+bh-6} fontSize="9" fill="#555">{d.total}</text>
-          </g>
-        );
-      })}
-      <g transform={`translate(62,${data.length*(bh+gap)+4})`}>
-        {[["Closed OK","#34d399"],["Breached","#fbbf24"],["WIP","#818cf8"]].map(([l,c],i)=>(
-          <g key={i} transform={`translate(${i*76},0)`}>
-            <rect x="0" y="-5" width="7" height="7" fill={c} rx="1"/>
-            <text x="9" y="1" fontSize="8" fill="#666">{l}</text>
-          </g>
-        ))}
-      </g>
-    </svg>
-  );
-}
-
-function LineChartSVG({data,height=160}){
-  const max=Math.max(...data.map(d=>d.total),1);
-  const w=280,pts=data.length;
-  const xStep=pts>1?w/(pts-1):w/2;
-  return(
-    <svg width="100%" viewBox={`0 0 320 ${height+30}`} style={{overflow:"visible"}}>
-      {[0,0.5,1].map((t,i)=>(
-        <line key={i} x1="30" y1={height-(t*height)+5} x2="310" y2={height-(t*height)+5} stroke="#1e1e1e" strokeWidth="1"/>
-      ))}
-      {[["total","#e11d74"],["closed","#34d399"],["breached","#fbbf24"]].map(([key,color])=>{
-        const points=data.map((d,i)=>`${30+i*xStep},${height-(((d[key]||0)/max)*height)+5}`).join(" ");
-        return(
-          <g key={key}>
-            <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round"/>
-            {data.map((d,i)=><circle key={i} cx={30+i*xStep} cy={height-(((d[key]||0)/max)*height)+5} r="3" fill={color}><title>{key}: {d[key]||0}</title></circle>)}
-          </g>
-        );
-      })}
-      {data.map((d,i)=><text key={i} x={30+i*xStep} y={height+18} fontSize="8" fill="#555" textAnchor="middle">{d.month}</text>)}
-      <g transform={`translate(30,${height+26})`}>
-        {[["Total","#e11d74"],["Closed OK","#34d399"],["Breached","#fbbf24"]].map(([l,c],i)=>(
-          <g key={i} transform={`translate(${i*72},0)`}><line x1="0" y1="-3" x2="8" y2="-3" stroke={c} strokeWidth="2"/><text x="10" y="1" fontSize="8" fill="#666">{l}</text></g>
-        ))}
-      </g>
-    </svg>
-  );
-}
-
-const today=new Date(),todayStr=today.toISOString().split("T")[0];
-const EMPTY={title:"",type:TYPES[0],owner:MEMBERS[0],controlMonth:MONTHS[today.getMonth()],controlYear:String(today.getFullYear()),startDate:todayStr,dueDate:"",closedDate:"",status:"Not Started",impact:"",riskBlocker:"",progress:0,notes:"",manualComment:""};
-
+// ── Styles ────────────────────────────────────────────────────────────────
 const S={
   wrap:{minHeight:"100vh",background:"#0a0a0a",padding:"20px",animation:"fadeIn 0.4s ease"},
   hdr:{background:"linear-gradient(135deg,#1a0a12,#12001a)",border:"1px solid #2a0a1a",borderRadius:16,padding:"20px 28px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between"},
-  logoBox:{width:42,height:42,background:"linear-gradient(135deg,#e11d74,#9333ea)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,boxShadow:"0 0 20px #e11d7440"},
+  logo:{width:42,height:42,background:"linear-gradient(135deg,#e11d74,#9333ea)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,boxShadow:"0 0 20px #e11d7440"},
   addBtn:{background:"linear-gradient(135deg,#e11d74,#9333ea)",border:"none",color:"#fff",padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:600,cursor:"pointer"},
   card:{background:"#111",border:"1px solid #1e1e1e",borderRadius:14},
   sel:{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#ccc",padding:"8px 14px",borderRadius:8,fontSize:13,outline:"none"},
@@ -198,6 +106,87 @@ function Spin(){return <div style={{width:28,height:28,border:"3px solid #222",b
 function fmtD(d){return d?new Date(d).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}):"—";}
 function vBtn(active){return{background:active?"linear-gradient(135deg,#e11d74,#9333ea)":"transparent",border:active?"none":"1px solid #2a2a2a",color:active?"#fff":"#666",padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"};}
 
+// ── SVG Charts ────────────────────────────────────────────────────────────
+function BarChartSVG({data,height=180}){
+  const max=Math.max(...data.map(d=>d.value),1);
+  const bw=Math.floor(260/data.length)-8;
+  return(
+    <svg width="100%" viewBox={`0 0 320 ${height+50}`} style={{overflow:"visible"}}>
+      {[0,0.5,1].map((t,i)=>(
+        <g key={i}>
+          <line x1="30" y1={height-(t*height)+5} x2="310" y2={height-(t*height)+5} stroke="#1e1e1e" strokeWidth="1"/>
+          <text x="25" y={height-(t*height)+9} fontSize="8" fill="#555" textAnchor="end">{Math.round(t*max)}</text>
+        </g>
+      ))}
+      {data.map((d,i)=>{
+        const h=Math.max((d.value/max)*height,d.value>0?4:0);
+        const x=30+i*(bw+8);
+        return(
+          <g key={i}>
+            <rect x={x} y={height-h+5} width={bw} height={h} fill={d.color} rx="3" opacity="0.9"/>
+            <text x={x+bw/2} y={height-h} fontSize="9" fill={d.color} textAnchor="middle" fontWeight="700">{d.value}</text>
+            <text x={x+bw/2} y={height+18} fontSize="8" fill="#666" textAnchor="middle">{d.label.length>9?d.label.substring(0,8)+"…":d.label}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function LineChartSVG({data,height=160}){
+  const max=Math.max(...data.map(d=>Math.max(d.total||0,d.closed||0,d.breached||0)),1);
+  const w=280,pts=data.length;
+  const xStep=pts>1?w/(pts-1):w/2;
+  return(
+    <svg width="100%" viewBox={`0 0 320 ${height+30}`} style={{overflow:"visible"}}>
+      {[0,0.5,1].map((t,i)=><line key={i} x1="30" y1={height-(t*height)+5} x2="310" y2={height-(t*height)+5} stroke="#1e1e1e" strokeWidth="1"/>)}
+      {[["total","#e11d74"],["closed","#34d399"],["breached","#fbbf24"]].map(([key,color])=>{
+        const points=data.map((d,i)=>`${30+i*xStep},${height-(((d[key]||0)/max)*height)+5}`).join(" ");
+        return(
+          <g key={key}>
+            <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round"/>
+            {data.map((d,i)=><circle key={i} cx={30+i*xStep} cy={height-(((d[key]||0)/max)*height)+5} r="3" fill={color}/>)}
+          </g>
+        );
+      })}
+      {data.map((d,i)=><text key={i} x={30+i*xStep} y={height+18} fontSize="8" fill="#555" textAnchor="middle">{d.month}</text>)}
+      <g transform={`translate(30,${height+26})`}>
+        {[["Total","#e11d74"],["Closed OK","#34d399"],["Breached","#fbbf24"]].map(([l,c],i)=>(
+          <g key={i} transform={`translate(${i*72},0)`}><line x1="0" y1="-3" x2="8" y2="-3" stroke={c} strokeWidth="2"/><text x="10" y="1" fontSize="8" fill="#666">{l}</text></g>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+function HBarChartSVG({data}){
+  const max=Math.max(...data.map(d=>d.total),1);
+  const bh=22,gap=6;
+  return(
+    <svg width="100%" viewBox={`0 0 320 ${data.length*(bh+gap)+20}`}>
+      {data.map((d,i)=>{
+        const y=i*(bh+gap);
+        const cw=(d.closed/max)*220,bw2=(d.breached/max)*220,ww=(d.wip/max)*220;
+        return(
+          <g key={i}>
+            <text x="58" y={y+bh-6} fontSize="10" fill="#888" textAnchor="end">{d.name}</text>
+            <rect x="62" y={y} width={Math.max(cw,0)} height={bh/3} fill="#34d399" rx="2"/>
+            <rect x="62" y={y+bh/3} width={Math.max(bw2,0)} height={bh/3} fill="#fbbf24" rx="2"/>
+            <rect x="62" y={y+bh*2/3} width={Math.max(ww,0)} height={bh/3} fill="#818cf8" rx="2"/>
+            <text x={65+Math.max(cw,bw2,ww)} y={y+bh-6} fontSize="9" fill="#555">{d.total}</text>
+          </g>
+        );
+      })}
+      <g transform={`translate(62,${data.length*(bh+gap)+4})`}>
+        {[["Closed OK","#34d399"],["Breached","#fbbf24"],["WIP","#818cf8"]].map(([l,c],i)=>(
+          <g key={i} transform={`translate(${i*76},0)`}><rect x="0" y="-5" width="7" height="7" fill={c} rx="1"/><text x="9" y="1" fontSize="8" fill="#666">{l}</text></g>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────
 function App(){
   const[user,setUser]=useState(null);
   const[items,setItems]=useState([]);
@@ -206,16 +195,19 @@ function App(){
   const[editId,setEditId]=useState(null);
   const[form,setForm]=useState(EMPTY);
   const[filters,setFilters]=useState({owner:"All",type:"All",status:"All",comment:"All",month:"All",year:"All"});
+  const[activeStat,setActiveStat]=useState("total");
   const[view,setView]=useState("table");
   const[expandedId,setExpandedId]=useState(null);
   const[hovId,setHovId]=useState(null);
   const[saving,setSaving]=useState(false);
   const[toast,setToast]=useState(null);
-  const[activeStat,setActiveStat]=useState("total");
 
-  const role=user?ROLES[user]:null,canEdit=role==="admin"||role==="edit",isAdmin=role==="admin";
+  const role=user?ROLES[user]:null;
+  const canEdit=role==="admin"||role==="edit";
+  const isAdmin=role==="admin";
+
   function showToast(msg,type="success"){setToast({msg,type});setTimeout(()=>setToast(null),3500);}
-  function f(k,v){setForm(x=>({...x,[k]:v}));}
+  function ff(k,v){setForm(x=>({...x,[k]:v}));}
 
   const loadData=useCallback(async()=>{
     setLoading(true);
@@ -226,7 +218,7 @@ function App(){
 
   useEffect(()=>{if(user)loadData();},[user]);
 
-  // Filter by start date month/year
+  // ── Base filter (dropdowns + month pills) ──
   const filtered=useMemo(()=>items.filter(i=>{
     const ac=getAutoComment(i);
     const monthMatch=filters.month==="All"||(i.controlMonth===filters.month);
@@ -240,7 +232,7 @@ function App(){
     );
   }),[items,filters]);
 
-  // Stats — clean definitions
+  // ── Stats from base filtered ──
   const stats=useMemo(()=>({
     total:filtered.length,
     open:filtered.filter(i=>i.status==="Not Started").length,
@@ -250,43 +242,60 @@ function App(){
     breached:filtered.filter(i=>getAutoComment(i).label.includes("breached")).length,
   }),[filtered]);
 
-  // Chart data — all driven by filtered
+  // ── Stat card click handler ──
+  function handleStatClick(stat){
+    setActiveStat(stat);
+    if(stat==="total")   setFilters(f=>({...f,status:"All",comment:"All"}));
+    else if(stat==="open")     setFilters(f=>({...f,status:"Not Started",comment:"All"}));
+    else if(stat==="wip")      setFilters(f=>({...f,status:"All",comment:"All"}));
+    else if(stat==="closed")   setFilters(f=>({...f,status:"Completed",comment:"All"}));
+    else if(stat==="closedOK") setFilters(f=>({...f,status:"All",comment:"Closed within due date"}));
+    else if(stat==="breached") setFilters(f=>({...f,status:"All",comment:"All"}));
+  }
+
+  // ── Secondary filter for WIP and breached (can't do via simple dropdown) ──
+  const display=useMemo(()=>{
+    if(activeStat==="wip")      return filtered.filter(i=>i.status==="In Progress"||i.status==="Blocked");
+    if(activeStat==="breached") return filtered.filter(i=>getAutoComment(i).label.includes("breached"));
+    return filtered;
+  },[filtered,activeStat]);
+
+  // ── Chart data ──
   const statusChartData=useMemo(()=>[
-    {label:"Open",value:filtered.filter(i=>i.status!=="Completed").length,color:"#818cf8"},
-    {label:"Closed OK",value:filtered.filter(i=>getAutoComment(i).label==="Closed within due date").length,color:"#34d399"},
-    {label:"Breached",value:filtered.filter(i=>getAutoComment(i).label.includes("breached")).length,color:"#fbbf24"},
-    {label:"WIP",value:filtered.filter(i=>getAutoComment(i).label.includes("WIP")).length,color:"#e11d74"},
-  ],[filtered]);
+    {label:"Open",     value:display.filter(i=>i.status==="Not Started").length,                             color:"#94a3b8"},
+    {label:"WIP",      value:display.filter(i=>i.status==="In Progress"||i.status==="Blocked").length,       color:"#818cf8"},
+    {label:"Closed",   value:display.filter(i=>i.status==="Completed").length,                              color:"#34d399"},
+    {label:"Closed OK",value:display.filter(i=>getAutoComment(i).label==="Closed within due date").length,  color:"#10b981"},
+    {label:"Breached", value:display.filter(i=>getAutoComment(i).label.includes("breached")).length,         color:"#fbbf24"},
+  ],[display]);
 
   const memberBreachData=useMemo(()=>MEMBERS.map(m=>({
     name:m.split(" ")[0],
-    total:filtered.filter(i=>i.owner===m).length,
-    closed:filtered.filter(i=>i.owner===m&&getAutoComment(i).label==="Closed within due date").length,
-    breached:filtered.filter(i=>i.owner===m&&getAutoComment(i).label.includes("breached")).length,
-    wip:filtered.filter(i=>i.owner===m&&getAutoComment(i).label.includes("WIP")).length,
-  })).filter(m=>m.total>0),[filtered]);
+    total:display.filter(i=>i.owner===m).length,
+    closed:display.filter(i=>i.owner===m&&getAutoComment(i).label==="Closed within due date").length,
+    breached:display.filter(i=>i.owner===m&&getAutoComment(i).label.includes("breached")).length,
+    wip:display.filter(i=>i.owner===m&&(i.status==="In Progress"||i.status==="Blocked")).length,
+  })).filter(m=>m.total>0),[display]);
 
-  // Trend — if a specific year is selected show all 12 months of that year,
-  // otherwise show last 6 months across years
   const trendData=useMemo(()=>{
     let periods=[];
     if(filters.year!=="All"){
       periods=MONTHS.map(m=>({m,y:filters.year}));
     } else {
       const all=[...MONTHS.map(m=>({m,y:"2025"})),...MONTHS.map(m=>({m,y:"2026"}))];
-      const todayIdx=all.findIndex(x=>x.m===MONTHS[today.getMonth()]&&x.y===String(today.getFullYear()));
-      periods=all.slice(Math.max(0,todayIdx-5),todayIdx+1);
+      const idx=all.findIndex(x=>x.m===MONTHS[todayD.getMonth()]&&x.y===String(todayD.getFullYear()));
+      periods=all.slice(Math.max(0,idx-5),idx+1);
     }
     return periods.map(({m,y})=>{
-      const its=filtered.filter(i=>i.controlMonth===m&&i.controlYear===y);
+      const its=display.filter(i=>i.controlMonth===m&&i.controlYear===y);
       return{month:m,total:its.length,closed:its.filter(i=>getAutoComment(i).label==="Closed within due date").length,breached:its.filter(i=>getAutoComment(i).label.includes("breached")).length};
     });
-  },[filtered,filters.year]);
+  },[display,filters.year]);
 
   const memberSummary=useMemo(()=>{
     const map={};
     MEMBERS.forEach(m=>map[m]={total:0,completed:0,blocked:0,inProgress:0,impact:0});
-    items.forEach(i=>{
+    display.forEach(i=>{
       if(!map[i.owner])map[i.owner]={total:0,completed:0,blocked:0,inProgress:0,impact:0};
       map[i.owner].total++;
       if(i.status==="Completed")map[i.owner].completed++;
@@ -295,9 +304,9 @@ function App(){
       map[i.owner].impact+=parseFloat(i.impact)||0;
     });
     return map;
-  },[items]);
+  },[display]);
 
-  function openAdd(){setForm({...EMPTY,startDate:todayStr});setEditId(null);setShowForm(true);}
+  function openAdd(){setForm({...EMPTY});setEditId(null);setShowForm(true);}
   function openEdit(item){setForm({...item});setEditId(item.id);setShowForm(true);}
 
   async function save(){
@@ -318,12 +327,11 @@ function App(){
     catch(e){showToast("Delete failed: "+e.message,"error");}
   }
 
-  const TABS=[{id:"table",l:"⊞ Table"},{id:"charts",l:"📈 Charts"},{id:"board",l:"⬜ Board"},{id:"member",l:"👤 By Member"}];
-
+  // ── Login ──────────────────────────────────────────────────────────────
   if(!user)return(
     <div style={S.loginWrap}>
       <div style={S.loginCard}>
-        <div style={{...S.logoBox,width:56,height:56,margin:"0 auto 16px",fontSize:26,borderRadius:16}}>M</div>
+        <div style={{...S.logo,width:56,height:56,margin:"0 auto 16px",fontSize:26,borderRadius:16}}>M</div>
         <div style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:4}}>Myntra RA</div>
         <div style={{fontSize:13,color:"#555",marginBottom:28}}>Program Tracker · Select your name</div>
         {MEMBERS.map(m=>(
@@ -339,6 +347,7 @@ function App(){
     </div>
   );
 
+  // ── Main App ────────────────────────────────────────────────────────────
   return(
     <div style={S.wrap}>
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:200,background:toast.type==="error"?"#3e1a1a":"#1a3e2a",border:`1px solid ${toast.type==="error"?"#f87171":"#34d399"}`,color:toast.type==="error"?"#f87171":"#34d399",padding:"12px 20px",borderRadius:12,fontSize:13,fontWeight:600,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>{toast.type==="error"?"⚠ ":"✓ "}{toast.msg}</div>}
@@ -346,7 +355,7 @@ function App(){
       {/* Header */}
       <div style={S.hdr}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={S.logoBox}>M</div>
+          <div style={S.logo}>M</div>
           <div>
             <div style={{fontSize:20,fontWeight:800,color:"#fff",letterSpacing:-0.5}}>Myntra RA · Program Tracker</div>
             <div style={{fontSize:12,color:"#888",marginTop:2}}>Revenue Assurance · {new Date().toLocaleDateString("en-IN",{month:"long",year:"numeric"})}</div>
@@ -354,7 +363,9 @@ function App(){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{display:"flex",background:"#161616",borderRadius:10,padding:3,gap:1}}>
-            {TABS.map(t=><button key={t.id} onClick={()=>setView(t.id)} style={vBtn(view===t.id)}>{t.l}</button>)}
+            {[["table","⊞ Table"],["charts","📈 Charts"],["board","⬜ Board"],["member","👤 By Member"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} style={vBtn(view===v)}>{l}</button>
+            ))}
           </div>
           <button onClick={loadData} style={{background:"transparent",border:"1px solid #2a2a2a",color:"#666",padding:"7px 12px",borderRadius:8,fontSize:12,cursor:"pointer"}}>↻</button>
           <div style={{textAlign:"right"}}>
@@ -366,37 +377,36 @@ function App(){
         </div>
       </div>
 
-      {/* Stats — interactive cards */}
+      {/* Stat Cards — Interactive */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:20}}>
         {[
-          {id:"total",  label:"Total",      value:stats.total,    color:"#e11d74"},
-          {id:"open",   label:"Open",       value:stats.open,     color:"#94a3b8"},
-          {id:"wip",    label:"WIP",        value:stats.wip,      color:"#818cf8"},
-          {id:"closed", label:"Closed",     value:stats.closed,   color:"#34d399"},
-          {id:"closedOK",label:"Closed OK", value:stats.closedOK, color:"#34d399"},
+          {id:"total",   label:"Total",     value:stats.total,    color:"#e11d74"},
+          {id:"open",    label:"Open",      value:stats.open,     color:"#94a3b8"},
+          {id:"wip",     label:"WIP",       value:stats.wip,      color:"#818cf8"},
+          {id:"closed",  label:"Closed",    value:stats.closed,   color:"#34d399"},
+          {id:"closedOK",label:"Closed OK", value:stats.closedOK, color:"#10b981"},
           {id:"breached",label:"Breached",  value:stats.breached, color:"#fbbf24"},
         ].map(s=>{
-          const isActive=activeStat===s.id;
+          const active=activeStat===s.id;
           return(
             <div key={s.id} onClick={()=>handleStatClick(s.id)}
               style={{...S.card,padding:"14px 16px",position:"relative",overflow:"hidden",cursor:"pointer",
-                border:`1px solid ${isActive?s.color:"#1e1e1e"}`,
-                boxShadow:isActive?`0 0 16px ${s.color}40`:"none",
-                transform:isActive?"translateY(-2px)":"none",
+                border:`1px solid ${active?s.color:"#1e1e1e"}`,
+                boxShadow:active?`0 0 16px ${s.color}40`:"none",
+                transform:active?"translateY(-2px)":"none",
                 transition:"all 0.2s"}}>
-              <div style={{position:"absolute",top:-15,right:-15,width:60,height:60,borderRadius:"50%",background:s.color,opacity:isActive?0.25:0.12,filter:"blur(16px)"}}/>
+              <div style={{position:"absolute",top:-15,right:-15,width:60,height:60,borderRadius:"50%",background:s.color,opacity:active?0.25:0.12,filter:"blur(16px)"}}/>
               <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.value}</div>
-              <div style={{fontSize:10,color:isActive?s.color:"#555",textTransform:"uppercase",letterSpacing:1,fontWeight:isActive?700:400}}>{s.label}</div>
-              {isActive&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:s.color,borderRadius:"0 0 14px 14px"}}/>}
+              <div style={{fontSize:10,color:active?s.color:"#555",textTransform:"uppercase",letterSpacing:1,fontWeight:active?700:400}}>{s.label}</div>
+              {active&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:s.color}}/>}
             </div>
           );
         })}
       </div>
 
       {/* Filters */}
-      <div style={{...S.card,padding:"14px 20px",marginBottom:20,display:"flex",alignItems:"center",flexWrap:"wrap",gap:10}}>
-        {/* Month multi-select row */}
-        <div style={{display:"flex",gap:4,flexWrap:"wrap",flex:1}}>
+      <div style={{...S.card,padding:"14px 20px",marginBottom:20}}>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>
           {["All",...MONTHS].map(m=>(
             <button key={m} onClick={()=>setFilters(f=>({...f,month:m}))}
               style={{padding:"5px 10px",borderRadius:20,border:`1px solid ${filters.month===m?"#e11d74":"#2a2a2a"}`,background:filters.month===m?"#2d0a1a":"transparent",color:filters.month===m?"#e11d74":"#555",fontSize:11,fontWeight:600,cursor:"pointer"}}>
@@ -404,7 +414,6 @@ function App(){
             </button>
           ))}
         </div>
-        {/* Year, Owner, Type, Status, Comment dropdowns */}
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <select value={filters.year} onChange={e=>setFilters(f=>({...f,year:e.target.value}))} style={S.sel}>
             {["All",...YEARS].map(y=><option key={y}>{y}</option>)}
@@ -414,7 +423,7 @@ function App(){
               {opts.map(o=><option key={o}>{o}</option>)}
             </select>
           ))}
-          <select value={filters.comment} onChange={e=>setFilters(f=>({...f,comment:e.target.value}))} style={{...S.sel,minWidth:180}}>
+          <select value={filters.comment} onChange={e=>setFilters(f=>({...f,comment:e.target.value}))} style={{...S.sel,minWidth:200}}>
             {COMMENT_TYPES.map(c=><option key={c}>{c}</option>)}
           </select>
         </div>
@@ -430,13 +439,13 @@ function App(){
               <tr>{["Program","Type","Owner","Control Month","Start","Due Date","Closed","Ageing","Status","Progress","₹ Impact","Comment","Blocker",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {filteredByActive.map(item=>{
+              {display.map(item=>{
                 const ac=getAutoComment(item);
                 const ageing=getAgeing(item);
                 const ageNum=parseInt(ageing);
                 return(
                   <React.Fragment key={item.id}>
-                    <tr style={{background:hovId===item.id?"#161616":"transparent",cursor:"pointer"}}
+                    <tr style={{background:hovId===item.id?"#161616":"transparent",cursor:"pointer",transition:"background 0.15s"}}
                       onMouseEnter={()=>setHovId(item.id)} onMouseLeave={()=>setHovId(null)}
                       onClick={()=>setExpandedId(expandedId===item.id?null:item.id)}>
                       <td style={{...S.td,maxWidth:180,fontWeight:600,color:"#e0e0e0"}}>
@@ -464,10 +473,8 @@ function App(){
                       </td>
                       <td style={{...S.td,color:"#34d399",fontWeight:600,whiteSpace:"nowrap"}}>{item.impact?`₹${item.impact}Cr`:"—"}</td>
                       <td style={{...S.td,whiteSpace:"nowrap"}}>
-                        <div>
-                          <span style={{fontSize:11,padding:"3px 8px",borderRadius:12,background:ac.bg,color:ac.color,fontWeight:600}}>{ac.icon} {ac.label}</span>
-                          {item.manualComment&&<div style={{fontSize:10,color:"#888",marginTop:3,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📝 {item.manualComment}</div>}
-                        </div>
+                        <span style={{fontSize:11,padding:"3px 8px",borderRadius:12,background:ac.bg,color:ac.color,fontWeight:600}}>{ac.icon} {ac.label}</span>
+                        {item.manualComment&&<div style={{fontSize:10,color:"#888",marginTop:3,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📝 {item.manualComment}</div>}
                       </td>
                       <td style={{...S.td,color:"#f87171",fontSize:11,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.riskBlocker||<span style={{color:"#333"}}>—</span>}</td>
                       <td style={S.td} onClick={e=>e.stopPropagation()}>
@@ -478,7 +485,7 @@ function App(){
                       </td>
                     </tr>
                     {expandedId===item.id&&(
-                      <tr><td colSpan={13} style={{padding:"10px 16px",background:"#0d0d0d",borderBottom:"1px solid #141414",fontSize:11,color:"#888"}}>
+                      <tr><td colSpan={14} style={{padding:"10px 16px",background:"#0d0d0d",borderBottom:"1px solid #141414",fontSize:11,color:"#888"}}>
                         <strong style={{color:"#e11d74"}}>Notes:</strong> {item.notes||"None"} &nbsp;·&nbsp;
                         <strong style={{color:"#fbbf24"}}>Comment:</strong> {item.manualComment||"None"} &nbsp;·&nbsp;
                         <strong style={{color:"#f87171"}}>Blocker:</strong> {item.riskBlocker||"None"} &nbsp;·&nbsp;
@@ -488,7 +495,7 @@ function App(){
                   </React.Fragment>
                 );
               })}
-              {filteredByActive.length===0&&<tr><td colSpan={13} style={{padding:48,textAlign:"center",color:"#333"}}>No programs found.</td></tr>}
+              {display.length===0&&<tr><td colSpan={14} style={{padding:48,textAlign:"center",color:"#333"}}>No programs found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -499,19 +506,19 @@ function App(){
         <div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
             <div style={{...S.card,padding:20}}>
-              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:4}}>📊 Program Status Breakdown</div>
-              <div style={{fontSize:11,color:"#555",marginBottom:14}}>Based on current filters</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>📊 Program Status Breakdown</div>
+              <div style={{fontSize:11,color:"#555",marginBottom:14}}>Based on current filters & selected card</div>
               <BarChartSVG data={statusChartData}/>
             </div>
             <div style={{...S.card,padding:20}}>
-              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:4}}>📈 Trend — Last 6 Months</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>📈 Trend by Control Month</div>
               <div style={{fontSize:11,color:"#555",marginBottom:14}}>Total · Closed OK · Breached</div>
               <LineChartSVG data={trendData}/>
             </div>
           </div>
           <div style={{...S.card,padding:20}}>
-            <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:4}}>👤 Breaches by Team Member</div>
-            <div style={{fontSize:11,color:"#555",marginBottom:14}}>Closed OK vs Breached vs WIP</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>👤 Breaches by Team Member</div>
+            <div style={{fontSize:11,color:"#555",marginBottom:14}}>Closed OK · Breached · WIP</div>
             {memberBreachData.length===0?<div style={{textAlign:"center",color:"#333",padding:"40px 0"}}>No data</div>:<HBarChartSVG data={memberBreachData}/>}
           </div>
         </div>
@@ -524,9 +531,9 @@ function App(){
             <div key={s} style={{...S.card,padding:14}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                 <Bdg m={STATUS_COLORS[s]}>{s}</Bdg>
-                <span style={{fontSize:11,color:"#444",fontWeight:700}}>{filteredByActive.filter(i=>i.status===s).length}</span>
+                <span style={{fontSize:11,color:"#444",fontWeight:700}}>{display.filter(i=>i.status===s).length}</span>
               </div>
-              {filteredByActive.filter(i=>i.status===s).map(item=>{
+              {display.filter(i=>i.status===s).map(item=>{
                 const ac=getAutoComment(item);
                 return(
                   <div key={item.id} style={{background:"#161616",border:"1px solid #222",borderRadius:10,padding:12,marginBottom:8,cursor:"pointer"}}
@@ -545,7 +552,7 @@ function App(){
                   </div>
                 );
               })}
-              {filteredByActive.filter(i=>i.status===s).length===0&&<p style={{fontSize:11,color:"#2a2a2a",textAlign:"center",padding:"16px 0"}}>Empty</p>}
+              {display.filter(i=>i.status===s).length===0&&<p style={{fontSize:11,color:"#2a2a2a",textAlign:"center",padding:"16px 0"}}>Empty</p>}
             </div>
           ))}
         </div>
@@ -556,7 +563,7 @@ function App(){
         <div>
           {MEMBERS.filter(m=>memberSummary[m]?.total>0).map(m=>{
             const ms=memberSummary[m];
-            const mBreached=items.filter(i=>i.owner===m&&getAutoComment(i).label.includes("breached")).length;
+            const mBreached=display.filter(i=>i.owner===m&&getAutoComment(i).label.includes("breached")).length;
             return(
               <div key={m} style={{...S.card,padding:20,marginBottom:12}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
@@ -576,7 +583,7 @@ function App(){
                     ))}
                   </div>
                 </div>
-                {items.filter(i=>i.owner===m).map(item=>{
+                {display.filter(i=>i.owner===m).map(item=>{
                   const ac=getAutoComment(item);
                   return(
                     <div key={item.id} style={{background:"#161616",border:"1px solid #1e1e1e",borderRadius:8,padding:"9px 14px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -604,35 +611,32 @@ function App(){
           <div style={S.modal}>
             <div style={{fontSize:17,fontWeight:800,color:"#fff",marginBottom:20}}>{editId?"Edit Program":"Add New Program"}</div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <div><label style={S.lbl}>Title *</label><input placeholder="Program title" value={form.title||""} onChange={e=>f("title",e.target.value)} style={S.inp}/></div>
+              <div><label style={S.lbl}>Title *</label><input placeholder="Program title" value={form.title||""} onChange={e=>ff("title",e.target.value)} style={S.inp}/></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                <div><label style={S.lbl}>Type</label><select value={form.type||""} onChange={e=>f("type",e.target.value)} style={S.inp}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-                <div><label style={S.lbl}>Owner</label><select value={form.owner||""} onChange={e=>f("owner",e.target.value)} style={S.inp}>{MEMBERS.map(m=><option key={m}>{m}</option>)}</select></div>
+                <div><label style={S.lbl}>Type</label><select value={form.type||""} onChange={e=>ff("type",e.target.value)} style={S.inp}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+                <div><label style={S.lbl}>Owner</label><select value={form.owner||""} onChange={e=>ff("owner",e.target.value)} style={S.inp}>{MEMBERS.map(m=><option key={m}>{m}</option>)}</select></div>
               </div>
-              {/* Control Month */}
               <div>
                 <label style={S.lbl}>Program / Control Month</label>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <select value={form.controlMonth||""} onChange={e=>f("controlMonth",e.target.value)} style={S.inp}>
-                    {MONTHS.map(m=><option key={m}>{m}</option>)}
-                  </select>
-                  <input placeholder="Year e.g. 2026" value={form.controlYear||""} onChange={e=>f("controlYear",e.target.value)} style={S.inp} maxLength={4}/>
+                  <select value={form.controlMonth||""} onChange={e=>ff("controlMonth",e.target.value)} style={S.inp}>{MONTHS.map(m=><option key={m}>{m}</option>)}</select>
+                  <input placeholder="Year e.g. 2026" value={form.controlYear||""} onChange={e=>ff("controlYear",e.target.value)} style={S.inp} maxLength={4}/>
                 </div>
-                <div style={{fontSize:10,color:"#555",marginTop:4}}>This is the month this program/control belongs to — drives charts and filters</div>
+                <div style={{fontSize:10,color:"#555",marginTop:4}}>This drives charts and month filters</div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-                <div><label style={S.lbl}>Start Date</label><input type="date" value={form.startDate||""} onChange={e=>f("startDate",e.target.value)} style={S.inp}/></div>
-                <div><label style={S.lbl}>Due Date</label><input type="date" value={form.dueDate||""} onChange={e=>f("dueDate",e.target.value)} style={S.inp}/></div>
-                <div><label style={S.lbl}>Closed Date</label><input type="date" value={form.closedDate||""} onChange={e=>f("closedDate",e.target.value)} style={S.inp}/></div>
+                <div><label style={S.lbl}>Start Date</label><input type="date" value={form.startDate||""} onChange={e=>ff("startDate",e.target.value)} style={S.inp}/></div>
+                <div><label style={S.lbl}>Due Date</label><input type="date" value={form.dueDate||""} onChange={e=>ff("dueDate",e.target.value)} style={S.inp}/></div>
+                <div><label style={S.lbl}>Closed Date</label><input type="date" value={form.closedDate||""} onChange={e=>ff("closedDate",e.target.value)} style={S.inp}/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                <div><label style={S.lbl}>Status</label><select value={form.status||""} onChange={e=>f("status",e.target.value)} style={S.inp}>{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
-                <div><label style={S.lbl}>₹ Impact (Cr)</label><input placeholder="e.g. 45" value={form.impact||""} onChange={e=>f("impact",e.target.value)} style={S.inp}/></div>
+                <div><label style={S.lbl}>Status</label><select value={form.status||""} onChange={e=>ff("status",e.target.value)} style={S.inp}>{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
+                <div><label style={S.lbl}>₹ Impact (Cr)</label><input placeholder="e.g. 45" value={form.impact||""} onChange={e=>ff("impact",e.target.value)} style={S.inp}/></div>
               </div>
               <div>
                 <label style={S.lbl}>Progress</label>
                 <div style={{display:"flex",alignItems:"center",gap:10,...S.inp,padding:"8px 14px"}}>
-                  <input type="range" min="0" max="100" value={form.progress||0} onChange={e=>f("progress",parseInt(e.target.value))} style={{flex:1}}/>
+                  <input type="range" min="0" max="100" value={form.progress||0} onChange={e=>ff("progress",parseInt(e.target.value))} style={{flex:1}}/>
                   <span style={{fontSize:13,color:"#e11d74",fontWeight:700,minWidth:36}}>{form.progress||0}%</span>
                 </div>
               </div>
@@ -640,9 +644,9 @@ function App(){
                 <label style={S.lbl}>Auto Comment Preview</label>
                 {(()=>{const ac=getAutoComment(form);return <span style={{fontSize:12,padding:"3px 10px",borderRadius:12,background:ac.bg,color:ac.color,fontWeight:600}}>{ac.icon} {ac.label}</span>;})()}
               </div>
-              <div><label style={S.lbl}>Manual Comment</label><textarea placeholder="Additional notes..." rows={2} value={form.manualComment||""} onChange={e=>f("manualComment",e.target.value)} style={{...S.inp,resize:"none"}}/></div>
-              <div><label style={S.lbl}>Risk / Blocker</label><input placeholder="Any risks or blockers?" value={form.riskBlocker||""} onChange={e=>f("riskBlocker",e.target.value)} style={S.inp}/></div>
-              <div><label style={S.lbl}>Notes</label><textarea placeholder="Additional notes..." rows={2} value={form.notes||""} onChange={e=>f("notes",e.target.value)} style={{...S.inp,resize:"none"}}/></div>
+              <div><label style={S.lbl}>Manual Comment</label><textarea placeholder="Additional notes..." rows={2} value={form.manualComment||""} onChange={e=>ff("manualComment",e.target.value)} style={{...S.inp,resize:"none"}}/></div>
+              <div><label style={S.lbl}>Risk / Blocker</label><input placeholder="Any risks or blockers?" value={form.riskBlocker||""} onChange={e=>ff("riskBlocker",e.target.value)} style={S.inp}/></div>
+              <div><label style={S.lbl}>Notes</label><textarea placeholder="Additional notes..." rows={2} value={form.notes||""} onChange={e=>ff("notes",e.target.value)} style={{...S.inp,resize:"none"}}/></div>
             </div>
             <div style={{display:"flex",gap:12,marginTop:20}}>
               <button onClick={save} disabled={saving} style={{...S.saveBtn,opacity:saving?0.7:1}}>{saving?"Saving...":"Save Program"}</button>
