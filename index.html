@@ -239,14 +239,14 @@ function App(){
     );
   }),[items,filters]);
 
-  // Stats
+  // Stats — clean definitions
   const stats=useMemo(()=>({
     total:filtered.length,
-    open:filtered.filter(i=>i.status!=="Completed").length,
+    open:filtered.filter(i=>i.status==="Not Started").length,
+    wip:filtered.filter(i=>i.status==="In Progress"||i.status==="Blocked").length,
     closed:filtered.filter(i=>i.status==="Completed").length,
     closedOK:filtered.filter(i=>getAutoComment(i).label==="Closed within due date").length,
     breached:filtered.filter(i=>getAutoComment(i).label.includes("breached")).length,
-    wip:filtered.filter(i=>getAutoComment(i).label.includes("WIP")).length,
   }),[filtered]);
 
   // Chart data — all driven by filtered
@@ -365,22 +365,31 @@ function App(){
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — interactive cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:20}}>
         {[
-          {label:"Total",value:stats.total,color:"#e11d74"},
-          {label:"Open",value:stats.open,color:"#818cf8"},
-          {label:"Closed",value:stats.closed,color:"#34d399"},
-          {label:"Closed OK",value:stats.closedOK,color:"#34d399"},
-          {label:"Breached",value:stats.breached,color:"#fbbf24"},
-          {label:"WIP",value:stats.wip,color:"#818cf8"},
-        ].map(s=>(
-          <div key={s.label} style={{...S.card,padding:"14px 16px",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",top:-15,right:-15,width:60,height:60,borderRadius:"50%",background:s.color,opacity:0.15,filter:"blur(16px)"}}/>
-            <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.value}</div>
-            <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:1}}>{s.label}</div>
-          </div>
-        ))}
+          {id:"total",  label:"Total",      value:stats.total,    color:"#e11d74"},
+          {id:"open",   label:"Open",       value:stats.open,     color:"#94a3b8"},
+          {id:"wip",    label:"WIP",        value:stats.wip,      color:"#818cf8"},
+          {id:"closed", label:"Closed",     value:stats.closed,   color:"#34d399"},
+          {id:"closedOK",label:"Closed OK", value:stats.closedOK, color:"#34d399"},
+          {id:"breached",label:"Breached",  value:stats.breached, color:"#fbbf24"},
+        ].map(s=>{
+          const isActive=activeStat===s.id;
+          return(
+            <div key={s.id} onClick={()=>handleStatClick(s.id)}
+              style={{...S.card,padding:"14px 16px",position:"relative",overflow:"hidden",cursor:"pointer",
+                border:`1px solid ${isActive?s.color:"#1e1e1e"}`,
+                boxShadow:isActive?`0 0 16px ${s.color}40`:"none",
+                transform:isActive?"translateY(-2px)":"none",
+                transition:"all 0.2s"}}>
+              <div style={{position:"absolute",top:-15,right:-15,width:60,height:60,borderRadius:"50%",background:s.color,opacity:isActive?0.25:0.12,filter:"blur(16px)"}}/>
+              <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.value}</div>
+              <div style={{fontSize:10,color:isActive?s.color:"#555",textTransform:"uppercase",letterSpacing:1,fontWeight:isActive?700:400}}>{s.label}</div>
+              {isActive&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:s.color,borderRadius:"0 0 14px 14px"}}/>}
+            </div>
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -420,7 +429,7 @@ function App(){
               <tr>{["Program","Type","Owner","Control Month","Start","Due Date","Closed","Ageing","Status","Progress","₹ Impact","Comment","Blocker",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {filtered.map(item=>{
+              {filteredByActive.map(item=>{
                 const ac=getAutoComment(item);
                 const ageing=getAgeing(item);
                 const ageNum=parseInt(ageing);
@@ -478,7 +487,7 @@ function App(){
                   </React.Fragment>
                 );
               })}
-              {filtered.length===0&&<tr><td colSpan={13} style={{padding:48,textAlign:"center",color:"#333"}}>No programs found.</td></tr>}
+              {filteredByActive.length===0&&<tr><td colSpan={13} style={{padding:48,textAlign:"center",color:"#333"}}>No programs found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -514,9 +523,9 @@ function App(){
             <div key={s} style={{...S.card,padding:14}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                 <Bdg m={STATUS_COLORS[s]}>{s}</Bdg>
-                <span style={{fontSize:11,color:"#444",fontWeight:700}}>{filtered.filter(i=>i.status===s).length}</span>
+                <span style={{fontSize:11,color:"#444",fontWeight:700}}>{filteredByActive.filter(i=>i.status===s).length}</span>
               </div>
-              {filtered.filter(i=>i.status===s).map(item=>{
+              {filteredByActive.filter(i=>i.status===s).map(item=>{
                 const ac=getAutoComment(item);
                 return(
                   <div key={item.id} style={{background:"#161616",border:"1px solid #222",borderRadius:10,padding:12,marginBottom:8,cursor:"pointer"}}
@@ -535,7 +544,7 @@ function App(){
                   </div>
                 );
               })}
-              {filtered.filter(i=>i.status===s).length===0&&<p style={{fontSize:11,color:"#2a2a2a",textAlign:"center",padding:"16px 0"}}>Empty</p>}
+              {filteredByActive.filter(i=>i.status===s).length===0&&<p style={{fontSize:11,color:"#2a2a2a",textAlign:"center",padding:"16px 0"}}>Empty</p>}
             </div>
           ))}
         </div>
