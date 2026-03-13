@@ -211,6 +211,7 @@ function App(){
   const[hovId,setHovId]=useState(null);
   const[saving,setSaving]=useState(false);
   const[toast,setToast]=useState(null);
+  const[activeStat,setActiveStat]=useState("total");
 
   const role=user?ROLES[user]:null,canEdit=role==="admin"||role==="edit",isAdmin=role==="admin";
   function showToast(msg,type="success"){setToast({msg,type});setTimeout(()=>setToast(null),3500);}
