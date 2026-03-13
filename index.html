@@ -27,7 +27,6 @@ table{border-collapse:collapse;width:100%}
 <script type="text/babel">
 const{useState,useMemo,useEffect,useCallback}=React;
 
-// ── Supabase ──────────────────────────────────────────────────────────────
 const SB_URL="https://fhmjyavhnkrioqamtuvw.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZobWp5YXZobmtyaW9xYW10dXZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMTAxNTYsImV4cCI6MjA4ODc4NjE1Nn0.8FCECJ_vIvCimJm4d8a-6y_cIHjO9knEwCnJw-azrXo";
 const H={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`};
@@ -40,13 +39,29 @@ async function dbDelete(id){const r=await fetch(`${SB_URL}/rest/v1/programs?id=e
 const ROLES={"Muralidharan":"admin","Piyush":"admin","Fareed":"edit","Shivendra":"edit","Sesirekha":"edit","Gurutej":"view"};
 const MEMBERS=Object.keys(ROLES);
 const TYPES=["Monthly Control","AR Collaboration","Ad Hoc Investigation","Stakeholder Review"];
-const STATUSES=["Not Started","In Progress","Blocked","Completed"];
+const STATUSES=["Open","Closed","Hold"];
+const CRITICALITIES=["Low","Medium","High"];
+const DEPENDENCIES=["Revenue Assurance","Accounting Tech","Other Tech Teams (OMS/Payments)","AR","GL","FP&A","Biz Fin"];
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const YEARS=["2024","2025","2026","2027"];
-const COMMENT_TYPES=["All","Not Started","Closed within due date","Closed — due date breached","WIP — within due date","WIP — due date breached"];
+const COMMENT_TYPES=["All","Closed within due date","Closed — due date breached","WIP — within due date","WIP — due date breached","Not Started"];
 
-const STATUS_COLORS={"Not Started":{bg:"#2a2a2a",text:"#aaa",dot:"#aaa"},"In Progress":{bg:"#1a1a3e",text:"#818cf8",dot:"#818cf8"},"Blocked":{bg:"#3e1a1a",text:"#f87171",dot:"#f87171"},"Completed":{bg:"#1a3e2a",text:"#34d399",dot:"#34d399"}};
-const TYPE_COLORS={"Monthly Control":{bg:"#2d1a3e",text:"#c084fc"},"AR Collaboration":{bg:"#3e2a1a",text:"#fb923c"},"Ad Hoc Investigation":{bg:"#3e3a1a",text:"#facc15"},"Stakeholder Review":{bg:"#1a3a3e",text:"#22d3ee"}};
+const STATUS_COLORS={
+  "Open": {bg:"#1a1a3e",text:"#818cf8",dot:"#818cf8"},
+  "Closed":{bg:"#1a3e2a",text:"#34d399",dot:"#34d399"},
+  "Hold":  {bg:"#3e2a00",text:"#fbbf24",dot:"#fbbf24"},
+};
+const CRITICALITY_META={
+  "Low":   {bg:"#1a3e2a",text:"#34d399",dot:"#34d399"},
+  "Medium":{bg:"#3e2a00",text:"#fbbf24",dot:"#fbbf24"},
+  "High":  {bg:"#3e1a1a",text:"#f87171",dot:"#f87171"},
+};
+const TYPE_COLORS={
+  "Monthly Control":      {bg:"#2d1a3e",text:"#c084fc"},
+  "AR Collaboration":     {bg:"#3e2a1a",text:"#fb923c"},
+  "Ad Hoc Investigation": {bg:"#3e3a1a",text:"#facc15"},
+  "Stakeholder Review":   {bg:"#1a3a3e",text:"#22d3ee"},
+};
 
 // ── Logic ─────────────────────────────────────────────────────────────────
 function getAutoComment(item){
@@ -55,15 +70,15 @@ function getAutoComment(item){
   const closed=item.closedDate?new Date(item.closedDate):null;
   if(due)due.setHours(0,0,0,0);
   if(closed)closed.setHours(0,0,0,0);
-  if(item.status==="Not Started")return{label:"Not Started",color:"#aaa",bg:"#2a2a2a",icon:"⚪"};
-  if(item.status==="Completed"){
-    if(!due||!closed)return{label:"Closed within due date",color:"#34d399",bg:"#1a3e2a",icon:"✅"};
-    if(closed<=due)return{label:"Closed within due date",color:"#34d399",bg:"#1a3e2a",icon:"✅"};
+  if(item.status==="Hold")    return{label:"On Hold",color:"#fbbf24",bg:"#3e2a00",icon:"⏸️"};
+  if(item.status==="Closed"){
+    if(!due||!closed)          return{label:"Closed within due date",color:"#34d399",bg:"#1a3e2a",icon:"✅"};
+    if(closed<=due)            return{label:"Closed within due date",color:"#34d399",bg:"#1a3e2a",icon:"✅"};
     return{label:"Closed — due date breached",color:"#fbbf24",bg:"#3e2a00",icon:"⚠️"};
   }
-  if(item.status==="In Progress"||item.status==="Blocked"){
-    if(!due)return{label:"WIP — within due date",color:"#818cf8",bg:"#1a1a3e",icon:"🔵"};
-    if(today<=due)return{label:"WIP — within due date",color:"#818cf8",bg:"#1a1a3e",icon:"🔵"};
+  if(item.status==="Open"){
+    if(!due)                   return{label:"WIP — within due date",color:"#818cf8",bg:"#1a1a3e",icon:"🔵"};
+    if(today<=due)             return{label:"WIP — within due date",color:"#818cf8",bg:"#1a1a3e",icon:"🔵"};
     return{label:"WIP — due date breached",color:"#f87171",bg:"#3e1a1a",icon:"🔴"};
   }
   return{label:"—",color:"#aaa",bg:"#2a2a2a",icon:""};
@@ -78,7 +93,7 @@ function getAgeing(item){
 }
 
 const todayD=new Date(),todayStr=todayD.toISOString().split("T")[0];
-const EMPTY={title:"",type:TYPES[0],owner:MEMBERS[0],controlMonth:MONTHS[todayD.getMonth()],controlYear:String(todayD.getFullYear()),startDate:todayStr,dueDate:"",closedDate:"",status:"Not Started",impact:"",riskBlocker:"",progress:0,notes:"",manualComment:""};
+const EMPTY={title:"",type:TYPES[0],owner:MEMBERS[0],criticality:"Medium",dependencies:[],controlMonth:MONTHS[todayD.getMonth()],controlYear:String(todayD.getFullYear()),startDate:todayStr,dueDate:"",closedDate:"",status:"Open",impact:"",riskBlocker:"",progress:0,notes:"",manualComment:""};
 
 // ── Styles ────────────────────────────────────────────────────────────────
 const S={
@@ -91,7 +106,7 @@ const S={
   th:{background:"#0d0d0d",color:"#555",fontSize:10,textTransform:"uppercase",letterSpacing:1.2,padding:"12px 14px",textAlign:"left",fontWeight:600,borderBottom:"1px solid #1e1e1e",whiteSpace:"nowrap"},
   td:{padding:"11px 14px",borderBottom:"1px solid #141414",fontSize:12,color:"#ccc",verticalAlign:"middle"},
   overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20},
-  modal:{background:"#111",border:"1px solid #2a2a2a",borderRadius:20,padding:28,width:"100%",maxWidth:580,animation:"slideUp 0.3s ease",maxHeight:"90vh",overflowY:"auto"},
+  modal:{background:"#111",border:"1px solid #2a2a2a",borderRadius:20,padding:28,width:"100%",maxWidth:600,animation:"slideUp 0.3s ease",maxHeight:"90vh",overflowY:"auto"},
   inp:{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#e0e0e0",padding:"10px 14px",borderRadius:10,fontSize:13,outline:"none"},
   lbl:{fontSize:11,color:"#666",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5,display:"block"},
   saveBtn:{flex:1,background:"linear-gradient(135deg,#e11d74,#9333ea)",border:"none",color:"#fff",padding:"12px",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"},
@@ -106,7 +121,7 @@ function Spin(){return <div style={{width:28,height:28,border:"3px solid #222",b
 function fmtD(d){return d?new Date(d).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}):"—";}
 function vBtn(active){return{background:active?"linear-gradient(135deg,#e11d74,#9333ea)":"transparent",border:active?"none":"1px solid #2a2a2a",color:active?"#fff":"#666",padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"};}
 
-// ── SVG Charts ────────────────────────────────────────────────────────────
+// ── SVG Charts ─────────────────────────────────────────────────────────────
 function BarChartSVG({data,height=180}){
   const max=Math.max(...data.map(d=>d.value),1);
   const bw=Math.floor(260/data.length)-8;
@@ -124,7 +139,7 @@ function BarChartSVG({data,height=180}){
         return(
           <g key={i}>
             <rect x={x} y={height-h+5} width={bw} height={h} fill={d.color} rx="3" opacity="0.9"/>
-            <text x={x+bw/2} y={height-h} fontSize="9" fill={d.color} textAnchor="middle" fontWeight="700">{d.value}</text>
+            <text x={x+bw/2} y={Math.max(height-h,8)} fontSize="9" fill={d.color} textAnchor="middle" fontWeight="700">{d.value}</text>
             <text x={x+bw/2} y={height+18} fontSize="8" fill="#666" textAnchor="middle">{d.label.length>9?d.label.substring(0,8)+"…":d.label}</text>
           </g>
         );
@@ -170,9 +185,9 @@ function HBarChartSVG({data}){
         return(
           <g key={i}>
             <text x="58" y={y+bh-6} fontSize="10" fill="#888" textAnchor="end">{d.name}</text>
-            <rect x="62" y={y} width={Math.max(cw,0)} height={bh/3} fill="#34d399" rx="2"/>
-            <rect x="62" y={y+bh/3} width={Math.max(bw2,0)} height={bh/3} fill="#fbbf24" rx="2"/>
-            <rect x="62" y={y+bh*2/3} width={Math.max(ww,0)} height={bh/3} fill="#818cf8" rx="2"/>
+            <rect x="62" y={y}          width={Math.max(cw,0)}  height={bh/3} fill="#34d399" rx="2"/>
+            <rect x="62" y={y+bh/3}    width={Math.max(bw2,0)} height={bh/3} fill="#fbbf24" rx="2"/>
+            <rect x="62" y={y+bh*2/3}  width={Math.max(ww,0)}  height={bh/3} fill="#818cf8" rx="2"/>
             <text x={65+Math.max(cw,bw2,ww)} y={y+bh-6} fontSize="9" fill="#555">{d.total}</text>
           </g>
         );
@@ -186,7 +201,27 @@ function HBarChartSVG({data}){
   );
 }
 
-// ── App ───────────────────────────────────────────────────────────────────
+function CriticalityBarChart({data,height=140}){
+  const max=Math.max(...data.map(d=>d.value),1);
+  const bw=60;
+  return(
+    <svg width="100%" viewBox={`0 0 320 ${height+40}`} style={{overflow:"visible"}}>
+      {data.map((d,i)=>{
+        const h=Math.max((d.value/max)*height,d.value>0?4:0);
+        const x=40+i*90;
+        return(
+          <g key={i}>
+            <rect x={x} y={height-h+5} width={bw} height={h} fill={d.color} rx="4" opacity="0.9"/>
+            <text x={x+bw/2} y={Math.max(height-h,8)} fontSize="11" fill={d.color} textAnchor="middle" fontWeight="800">{d.value}</text>
+            <text x={x+bw/2} y={height+18} fontSize="10" fill="#666" textAnchor="middle" fontWeight="600">{d.label}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────────────────
 function App(){
   const[user,setUser]=useState(null);
   const[items,setItems]=useState([]);
@@ -194,7 +229,7 @@ function App(){
   const[showForm,setShowForm]=useState(false);
   const[editId,setEditId]=useState(null);
   const[form,setForm]=useState(EMPTY);
-  const[filters,setFilters]=useState({owner:"All",type:"All",status:"All",comment:"All",month:"All",year:"All"});
+  const[filters,setFilters]=useState({owner:"All",type:"All",status:"All",criticality:"All",dependency:"All",comment:"All",month:"All",year:"All"});
   const[activeStat,setActiveStat]=useState("total");
   const[view,setView]=useState("table");
   const[expandedId,setExpandedId]=useState(null);
@@ -208,6 +243,7 @@ function App(){
 
   function showToast(msg,type="success"){setToast({msg,type});setTimeout(()=>setToast(null),3500);}
   function ff(k,v){setForm(x=>({...x,[k]:v}));}
+  function toggleDep(dep){setForm(x=>({...x,dependencies:(x.dependencies||[]).includes(dep)?(x.dependencies||[]).filter(d=>d!==dep):[...(x.dependencies||[]),dep]}));}
 
   const loadData=useCallback(async()=>{
     setLoading(true);
@@ -218,55 +254,60 @@ function App(){
 
   useEffect(()=>{if(user)loadData();},[user]);
 
-  // ── Base filter (dropdowns + month pills) ──
   const filtered=useMemo(()=>items.filter(i=>{
     const ac=getAutoComment(i);
     const monthMatch=filters.month==="All"||(i.controlMonth===filters.month);
     const yearMatch=filters.year==="All"||(i.controlYear===filters.year);
+    const depMatch=filters.dependency==="All"||((i.dependencies||[]).includes(filters.dependency));
     return(
       (filters.owner==="All"||i.owner===filters.owner)&&
       (filters.type==="All"||i.type===filters.type)&&
       (filters.status==="All"||i.status===filters.status)&&
+      (filters.criticality==="All"||i.criticality===filters.criticality)&&
       (filters.comment==="All"||ac.label===filters.comment)&&
-      monthMatch&&yearMatch
+      depMatch&&monthMatch&&yearMatch
     );
   }),[items,filters]);
 
-  // ── Stats from base filtered ──
   const stats=useMemo(()=>({
     total:filtered.length,
-    open:filtered.filter(i=>i.status==="Not Started").length,
-    wip:filtered.filter(i=>i.status==="In Progress"||i.status==="Blocked").length,
-    closed:filtered.filter(i=>i.status==="Completed").length,
+    open:filtered.filter(i=>i.status==="Open").length,
+    closed:filtered.filter(i=>i.status==="Closed").length,
+    hold:filtered.filter(i=>i.status==="Hold").length,
     closedOK:filtered.filter(i=>getAutoComment(i).label==="Closed within due date").length,
     breached:filtered.filter(i=>getAutoComment(i).label.includes("breached")).length,
+    high:filtered.filter(i=>i.criticality==="High").length,
   }),[filtered]);
 
-  // ── Stat card click handler ──
   function handleStatClick(stat){
     setActiveStat(stat);
-    if(stat==="total")   setFilters(f=>({...f,status:"All",comment:"All"}));
-    else if(stat==="open")     setFilters(f=>({...f,status:"Not Started",comment:"All"}));
-    else if(stat==="wip")      setFilters(f=>({...f,status:"All",comment:"All"}));
-    else if(stat==="closed")   setFilters(f=>({...f,status:"Completed",comment:"All"}));
+    if(stat==="total")    setFilters(f=>({...f,status:"All",criticality:"All",comment:"All"}));
+    else if(stat==="open")     setFilters(f=>({...f,status:"Open",comment:"All"}));
+    else if(stat==="closed")   setFilters(f=>({...f,status:"Closed",comment:"All"}));
+    else if(stat==="hold")     setFilters(f=>({...f,status:"Hold",comment:"All"}));
     else if(stat==="closedOK") setFilters(f=>({...f,status:"All",comment:"Closed within due date"}));
     else if(stat==="breached") setFilters(f=>({...f,status:"All",comment:"All"}));
+    else if(stat==="high")     setFilters(f=>({...f,criticality:"High",status:"All",comment:"All"}));
   }
 
-  // ── Secondary filter for WIP and breached (can't do via simple dropdown) ──
   const display=useMemo(()=>{
-    if(activeStat==="wip")      return filtered.filter(i=>i.status==="In Progress"||i.status==="Blocked");
     if(activeStat==="breached") return filtered.filter(i=>getAutoComment(i).label.includes("breached"));
     return filtered;
   },[filtered,activeStat]);
 
-  // ── Chart data ──
+  // Charts
   const statusChartData=useMemo(()=>[
-    {label:"Open",     value:display.filter(i=>i.status==="Not Started").length,                             color:"#94a3b8"},
-    {label:"WIP",      value:display.filter(i=>i.status==="In Progress"||i.status==="Blocked").length,       color:"#818cf8"},
-    {label:"Closed",   value:display.filter(i=>i.status==="Completed").length,                              color:"#34d399"},
-    {label:"Closed OK",value:display.filter(i=>getAutoComment(i).label==="Closed within due date").length,  color:"#10b981"},
-    {label:"Breached", value:display.filter(i=>getAutoComment(i).label.includes("breached")).length,         color:"#fbbf24"},
+    {label:"Open",     value:display.filter(i=>i.status==="Open").length,                               color:"#818cf8"},
+    {label:"Closed",   value:display.filter(i=>i.status==="Closed").length,                             color:"#34d399"},
+    {label:"Hold",     value:display.filter(i=>i.status==="Hold").length,                               color:"#fbbf24"},
+    {label:"Closed OK",value:display.filter(i=>getAutoComment(i).label==="Closed within due date").length,color:"#10b981"},
+    {label:"Breached", value:display.filter(i=>getAutoComment(i).label.includes("breached")).length,     color:"#f87171"},
+  ],[display]);
+
+  const criticalityChartData=useMemo(()=>[
+    {label:"High",   value:display.filter(i=>i.criticality==="High").length,   color:"#f87171"},
+    {label:"Medium", value:display.filter(i=>i.criticality==="Medium").length, color:"#fbbf24"},
+    {label:"Low",    value:display.filter(i=>i.criticality==="Low").length,    color:"#34d399"},
   ],[display]);
 
   const memberBreachData=useMemo(()=>MEMBERS.map(m=>({
@@ -274,7 +315,7 @@ function App(){
     total:display.filter(i=>i.owner===m).length,
     closed:display.filter(i=>i.owner===m&&getAutoComment(i).label==="Closed within due date").length,
     breached:display.filter(i=>i.owner===m&&getAutoComment(i).label.includes("breached")).length,
-    wip:display.filter(i=>i.owner===m&&(i.status==="In Progress"||i.status==="Blocked")).length,
+    wip:display.filter(i=>i.owner===m&&i.status==="Open").length,
   })).filter(m=>m.total>0),[display]);
 
   const trendData=useMemo(()=>{
@@ -294,20 +335,20 @@ function App(){
 
   const memberSummary=useMemo(()=>{
     const map={};
-    MEMBERS.forEach(m=>map[m]={total:0,completed:0,blocked:0,inProgress:0,impact:0});
+    MEMBERS.forEach(m=>map[m]={total:0,closed:0,hold:0,open:0,impact:0});
     display.forEach(i=>{
-      if(!map[i.owner])map[i.owner]={total:0,completed:0,blocked:0,inProgress:0,impact:0};
+      if(!map[i.owner])map[i.owner]={total:0,closed:0,hold:0,open:0,impact:0};
       map[i.owner].total++;
-      if(i.status==="Completed")map[i.owner].completed++;
-      if(i.status==="Blocked")map[i.owner].blocked++;
-      if(i.status==="In Progress")map[i.owner].inProgress++;
+      if(i.status==="Closed")map[i.owner].closed++;
+      if(i.status==="Hold")map[i.owner].hold++;
+      if(i.status==="Open")map[i.owner].open++;
       map[i.owner].impact+=parseFloat(i.impact)||0;
     });
     return map;
   },[display]);
 
   function openAdd(){setForm({...EMPTY});setEditId(null);setShowForm(true);}
-  function openEdit(item){setForm({...item});setEditId(item.id);setShowForm(true);}
+  function openEdit(item){setForm({...item,dependencies:item.dependencies||[]});setEditId(item.id);setShowForm(true);}
 
   async function save(){
     if(!form.title?.trim())return;
@@ -377,27 +418,28 @@ function App(){
         </div>
       </div>
 
-      {/* Stat Cards — Interactive */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:20}}>
+      {/* Stat Cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:10,marginBottom:20}}>
         {[
-          {id:"total",   label:"Total",     value:stats.total,    color:"#e11d74"},
-          {id:"open",    label:"Open",      value:stats.open,     color:"#94a3b8"},
-          {id:"wip",     label:"WIP",       value:stats.wip,      color:"#818cf8"},
-          {id:"closed",  label:"Closed",    value:stats.closed,   color:"#34d399"},
-          {id:"closedOK",label:"Closed OK", value:stats.closedOK, color:"#10b981"},
-          {id:"breached",label:"Breached",  value:stats.breached, color:"#fbbf24"},
+          {id:"total",   label:"Total",    value:stats.total,    color:"#e11d74"},
+          {id:"open",    label:"Open",     value:stats.open,     color:"#818cf8"},
+          {id:"closed",  label:"Closed",   value:stats.closed,   color:"#34d399"},
+          {id:"hold",    label:"On Hold",  value:stats.hold,     color:"#fbbf24"},
+          {id:"closedOK",label:"Closed OK",value:stats.closedOK, color:"#10b981"},
+          {id:"breached",label:"Breached", value:stats.breached, color:"#f87171"},
+          {id:"high",    label:"🔴 High",  value:stats.high,     color:"#f87171"},
         ].map(s=>{
           const active=activeStat===s.id;
           return(
             <div key={s.id} onClick={()=>handleStatClick(s.id)}
-              style={{...S.card,padding:"14px 16px",position:"relative",overflow:"hidden",cursor:"pointer",
+              style={{...S.card,padding:"12px 14px",position:"relative",overflow:"hidden",cursor:"pointer",
                 border:`1px solid ${active?s.color:"#1e1e1e"}`,
                 boxShadow:active?`0 0 16px ${s.color}40`:"none",
                 transform:active?"translateY(-2px)":"none",
                 transition:"all 0.2s"}}>
-              <div style={{position:"absolute",top:-15,right:-15,width:60,height:60,borderRadius:"50%",background:s.color,opacity:active?0.25:0.12,filter:"blur(16px)"}}/>
-              <div style={{fontSize:22,fontWeight:800,color:s.color,marginBottom:2}}>{s.value}</div>
-              <div style={{fontSize:10,color:active?s.color:"#555",textTransform:"uppercase",letterSpacing:1,fontWeight:active?700:400}}>{s.label}</div>
+              <div style={{position:"absolute",top:-15,right:-15,width:60,height:60,borderRadius:"50%",background:s.color,opacity:active?0.25:0.1,filter:"blur(16px)"}}/>
+              <div style={{fontSize:20,fontWeight:800,color:s.color,marginBottom:2}}>{s.value}</div>
+              <div style={{fontSize:9,color:active?s.color:"#555",textTransform:"uppercase",letterSpacing:1,fontWeight:active?700:400}}>{s.label}</div>
               {active&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:s.color}}/>}
             </div>
           );
@@ -418,12 +460,22 @@ function App(){
           <select value={filters.year} onChange={e=>setFilters(f=>({...f,year:e.target.value}))} style={S.sel}>
             {["All",...YEARS].map(y=><option key={y}>{y}</option>)}
           </select>
-          {[["owner",["All",...MEMBERS]],["type",["All",...TYPES]],["status",["All",...STATUSES]]].map(([key,opts])=>(
-            <select key={key} value={filters[key]} onChange={e=>setFilters(f=>({...f,[key]:e.target.value}))} style={S.sel}>
-              {opts.map(o=><option key={o}>{o}</option>)}
-            </select>
-          ))}
-          <select value={filters.comment} onChange={e=>setFilters(f=>({...f,comment:e.target.value}))} style={{...S.sel,minWidth:200}}>
+          <select value={filters.owner} onChange={e=>setFilters(f=>({...f,owner:e.target.value}))} style={S.sel}>
+            {["All",...MEMBERS].map(o=><option key={o}>{o}</option>)}
+          </select>
+          <select value={filters.type} onChange={e=>setFilters(f=>({...f,type:e.target.value}))} style={S.sel}>
+            {["All",...TYPES].map(o=><option key={o}>{o}</option>)}
+          </select>
+          <select value={filters.status} onChange={e=>setFilters(f=>({...f,status:e.target.value}))} style={S.sel}>
+            {["All",...STATUSES].map(o=><option key={o}>{o}</option>)}
+          </select>
+          <select value={filters.criticality} onChange={e=>setFilters(f=>({...f,criticality:e.target.value}))} style={S.sel}>
+            {["All",...CRITICALITIES].map(o=><option key={o}>{o}</option>)}
+          </select>
+          <select value={filters.dependency} onChange={e=>setFilters(f=>({...f,dependency:e.target.value}))} style={{...S.sel,minWidth:180}}>
+            {["All",...DEPENDENCIES].map(o=><option key={o}>{o}</option>)}
+          </select>
+          <select value={filters.comment} onChange={e=>setFilters(f=>({...f,comment:e.target.value}))} style={{...S.sel,minWidth:180}}>
             {COMMENT_TYPES.map(c=><option key={c}>{c}</option>)}
           </select>
         </div>
@@ -434,15 +486,16 @@ function App(){
       {/* TABLE */}
       {!loading&&view==="table"&&(
         <div style={{...S.card,overflowX:"auto"}}>
-          <table style={{minWidth:1350}}>
+          <table style={{minWidth:1500}}>
             <thead>
-              <tr>{["Program","Type","Owner","Control Month","Start","Due Date","Closed","Ageing","Status","Progress","₹ Impact","Comment","Blocker",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+              <tr>{["Program","Type","Criticality","Owner","Control Month","Start","Due Date","Closed","Ageing","Status","Progress","₹ Impact","Dependencies","Comment","Blocker",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {display.map(item=>{
                 const ac=getAutoComment(item);
                 const ageing=getAgeing(item);
                 const ageNum=parseInt(ageing);
+                const cm=CRITICALITY_META[item.criticality||"Medium"];
                 return(
                   <React.Fragment key={item.id}>
                     <tr style={{background:hovId===item.id?"#161616":"transparent",cursor:"pointer",transition:"background 0.15s"}}
@@ -453,13 +506,18 @@ function App(){
                         {item.notes&&<div style={{fontSize:10,color:"#555",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.notes}</div>}
                       </td>
                       <td style={S.td}><Bdg m={TYPE_COLORS[item.type]}>{item.type}</Bdg></td>
+                      <td style={S.td}>
+                        <span style={{display:"inline-flex",alignItems:"center",gap:4,background:cm.bg,color:cm.text,padding:"3px 9px",borderRadius:20,fontSize:11,fontWeight:700}}>
+                          <Dot m={cm}/>{item.criticality||"Medium"}
+                        </span>
+                      </td>
                       <td style={{...S.td,whiteSpace:"nowrap"}}>{item.owner}</td>
                       <td style={{...S.td,whiteSpace:"nowrap"}}>
                         <span style={{fontSize:12,fontWeight:700,color:"#e11d74"}}>{item.controlMonth||"—"}</span>
                         <span style={{fontSize:11,color:"#555",marginLeft:4}}>{item.controlYear||""}</span>
                       </td>
                       <td style={{...S.td,fontSize:11,whiteSpace:"nowrap",color:"#888"}}>{fmtD(item.startDate)}</td>
-                      <td style={{...S.td,fontSize:11,whiteSpace:"nowrap",color:item.dueDate&&new Date(item.dueDate)<new Date()&&item.status!=="Completed"?"#f87171":"#ccc"}}>{fmtD(item.dueDate)}</td>
+                      <td style={{...S.td,fontSize:11,whiteSpace:"nowrap",color:item.dueDate&&new Date(item.dueDate)<new Date()&&item.status!=="Closed"?"#f87171":"#ccc"}}>{fmtD(item.dueDate)}</td>
                       <td style={{...S.td,fontSize:11,whiteSpace:"nowrap",color:"#34d399"}}>{fmtD(item.closedDate)}</td>
                       <td style={{...S.td,whiteSpace:"nowrap"}}>
                         <span style={{fontSize:12,fontWeight:700,color:ageing==="—"?"#555":ageNum>30?"#f87171":ageNum>14?"#fbbf24":"#34d399"}}>{ageing}</span>
@@ -472,6 +530,12 @@ function App(){
                         </div>
                       </td>
                       <td style={{...S.td,color:"#34d399",fontWeight:600,whiteSpace:"nowrap"}}>{item.impact?`₹${item.impact}Cr`:"—"}</td>
+                      <td style={S.td}>
+                        <div style={{display:"flex",gap:3,flexWrap:"wrap",maxWidth:160}}>
+                          {(item.dependencies||[]).map((d,i)=><span key={i} style={{fontSize:9,padding:"2px 6px",borderRadius:8,background:"#1a1a3e",color:"#818cf8",fontWeight:600,whiteSpace:"nowrap"}}>{d}</span>)}
+                          {(!item.dependencies||item.dependencies.length===0)&&<span style={{color:"#333",fontSize:11}}>—</span>}
+                        </div>
+                      </td>
                       <td style={{...S.td,whiteSpace:"nowrap"}}>
                         <span style={{fontSize:11,padding:"3px 8px",borderRadius:12,background:ac.bg,color:ac.color,fontWeight:600}}>{ac.icon} {ac.label}</span>
                         {item.manualComment&&<div style={{fontSize:10,color:"#888",marginTop:3,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📝 {item.manualComment}</div>}
@@ -485,17 +549,18 @@ function App(){
                       </td>
                     </tr>
                     {expandedId===item.id&&(
-                      <tr><td colSpan={14} style={{padding:"10px 16px",background:"#0d0d0d",borderBottom:"1px solid #141414",fontSize:11,color:"#888"}}>
+                      <tr><td colSpan={16} style={{padding:"10px 16px",background:"#0d0d0d",borderBottom:"1px solid #141414",fontSize:11,color:"#888"}}>
                         <strong style={{color:"#e11d74"}}>Notes:</strong> {item.notes||"None"} &nbsp;·&nbsp;
                         <strong style={{color:"#fbbf24"}}>Comment:</strong> {item.manualComment||"None"} &nbsp;·&nbsp;
                         <strong style={{color:"#f87171"}}>Blocker:</strong> {item.riskBlocker||"None"} &nbsp;·&nbsp;
-                        <strong style={{color:"#818cf8"}}>Ageing:</strong> {ageing}
+                        <strong style={{color:"#818cf8"}}>Ageing:</strong> {ageing} &nbsp;·&nbsp;
+                        <strong style={{color:"#818cf8"}}>Dependencies:</strong> {(item.dependencies||[]).join(", ")||"None"}
                       </td></tr>
                     )}
                   </React.Fragment>
                 );
               })}
-              {display.length===0&&<tr><td colSpan={14} style={{padding:48,textAlign:"center",color:"#333"}}>No programs found.</td></tr>}
+              {display.length===0&&<tr><td colSpan={16} style={{padding:48,textAlign:"center",color:"#333"}}>No programs found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -506,27 +571,34 @@ function App(){
         <div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
             <div style={{...S.card,padding:20}}>
-              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>📊 Program Status Breakdown</div>
-              <div style={{fontSize:11,color:"#555",marginBottom:14}}>Based on current filters & selected card</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>📊 Status Breakdown</div>
+              <div style={{fontSize:11,color:"#555",marginBottom:14}}>Based on current filters</div>
               <BarChartSVG data={statusChartData}/>
             </div>
+            <div style={{...S.card,padding:20}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>🚦 Criticality Breakdown</div>
+              <div style={{fontSize:11,color:"#555",marginBottom:14}}>High · Medium · Low</div>
+              <CriticalityBarChart data={criticalityChartData}/>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
             <div style={{...S.card,padding:20}}>
               <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>📈 Trend by Control Month</div>
               <div style={{fontSize:11,color:"#555",marginBottom:14}}>Total · Closed OK · Breached</div>
               <LineChartSVG data={trendData}/>
             </div>
-          </div>
-          <div style={{...S.card,padding:20}}>
-            <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>👤 Breaches by Team Member</div>
-            <div style={{fontSize:11,color:"#555",marginBottom:14}}>Closed OK · Breached · WIP</div>
-            {memberBreachData.length===0?<div style={{textAlign:"center",color:"#333",padding:"40px 0"}}>No data</div>:<HBarChartSVG data={memberBreachData}/>}
+            <div style={{...S.card,padding:20}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}}>👤 Breaches by Member</div>
+              <div style={{fontSize:11,color:"#555",marginBottom:14}}>Closed OK · Breached · WIP</div>
+              {memberBreachData.length===0?<div style={{textAlign:"center",color:"#333",padding:"40px 0"}}>No data</div>:<HBarChartSVG data={memberBreachData}/>}
+            </div>
           </div>
         </div>
       )}
 
       {/* BOARD */}
       {!loading&&view==="board"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
           {STATUSES.map(s=>(
             <div key={s} style={{...S.card,padding:14}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
@@ -535,19 +607,23 @@ function App(){
               </div>
               {display.filter(i=>i.status===s).map(item=>{
                 const ac=getAutoComment(item);
+                const cm=CRITICALITY_META[item.criticality||"Medium"];
                 return(
-                  <div key={item.id} style={{background:"#161616",border:"1px solid #222",borderRadius:10,padding:12,marginBottom:8,cursor:"pointer"}}
+                  <div key={item.id} style={{background:"#161616",border:`1px solid ${cm.bg}`,borderRadius:10,padding:12,marginBottom:8,cursor:"pointer"}}
                     onClick={()=>canEdit&&openEdit(item)}
                     onMouseEnter={e=>e.currentTarget.style.borderColor="#e11d74"}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor="#222"}>
-                    <div style={{fontSize:13,fontWeight:600,color:"#e0e0e0",marginBottom:6}}>{item.title}</div>
+                    onMouseLeave={e=>e.currentTarget.style.borderColor=cm.bg}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#e0e0e0",flex:1}}>{item.title}</div>
+                      <span style={{fontSize:10,padding:"2px 7px",borderRadius:10,background:cm.bg,color:cm.text,fontWeight:700,marginLeft:6,whiteSpace:"nowrap"}}>{item.criticality||"Medium"}</span>
+                    </div>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
                       <span style={{fontSize:11,color:"#555"}}>{item.owner}</span>
                       {item.impact&&<span style={{fontSize:11,color:"#34d399",fontWeight:700}}>₹{item.impact}Cr</span>}
                     </div>
                     <span style={{fontSize:10,padding:"2px 7px",borderRadius:10,background:ac.bg,color:ac.color,fontWeight:600}}>{ac.icon} {ac.label}</span>
                     <div style={{fontSize:10,color:"#555",marginTop:4}}>⏱ {getAgeing(item)}</div>
-                    {item.riskBlocker&&<div style={{fontSize:10,color:"#f87171",marginTop:4}}>⚠ {item.riskBlocker}</div>}
+                    {(item.dependencies||[]).length>0&&<div style={{fontSize:10,color:"#818cf8",marginTop:4}}>🔗 {(item.dependencies||[]).join(", ")}</div>}
                     <div style={{background:"#222",borderRadius:3,height:3,marginTop:6}}><div style={{width:`${item.progress||0}%`,background:"linear-gradient(90deg,#e11d74,#9333ea)",borderRadius:3,height:3}}/></div>
                   </div>
                 );
@@ -564,6 +640,7 @@ function App(){
           {MEMBERS.filter(m=>memberSummary[m]?.total>0).map(m=>{
             const ms=memberSummary[m];
             const mBreached=display.filter(i=>i.owner===m&&getAutoComment(i).label.includes("breached")).length;
+            const mHigh=display.filter(i=>i.owner===m&&i.criticality==="High").length;
             return(
               <div key={m} style={{...S.card,padding:20,marginBottom:12}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
@@ -571,27 +648,29 @@ function App(){
                     <div style={{width:44,height:44,borderRadius:12,background:"linear-gradient(135deg,#e11d74,#9333ea)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff"}}>{m[0]}</div>
                     <div>
                       <div style={{fontWeight:700,color:"#e0e0e0",fontSize:15}}>{m}</div>
-                      <div style={{fontSize:12,color:"#555"}}>{ms.total} programs · ₹{ms.impact.toFixed(1)}Cr · {mBreached} breach{mBreached!==1?"es":""}</div>
+                      <div style={{fontSize:12,color:"#555"}}>{ms.total} programs · ₹{ms.impact.toFixed(1)}Cr · {mBreached} breach{mBreached!==1?"es":""} · {mHigh} high priority</div>
                     </div>
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    {[{v:ms.inProgress,c:"#818cf8",l:"WIP"},{v:ms.blocked,c:"#f87171",l:"Blocked"},{v:ms.completed,c:"#34d399",l:"Done"},{v:mBreached,c:"#fbbf24",l:"Breached"}].map(x=>(
-                      <div key={x.l} style={{textAlign:"center",background:"#161616",border:"1px solid #222",borderRadius:10,padding:"8px 12px"}}>
-                        <div style={{fontSize:18,fontWeight:800,color:x.c}}>{x.v}</div>
-                        <div style={{fontSize:10,color:"#555"}}>{x.l}</div>
+                    {[{v:ms.open,c:"#818cf8",l:"Open"},{v:ms.closed,c:"#34d399",l:"Closed"},{v:ms.hold,c:"#fbbf24",l:"Hold"},{v:mBreached,c:"#f87171",l:"Breached"},{v:mHigh,c:"#f87171",l:"High"}].map(x=>(
+                      <div key={x.l} style={{textAlign:"center",background:"#161616",border:"1px solid #222",borderRadius:10,padding:"8px 10px"}}>
+                        <div style={{fontSize:16,fontWeight:800,color:x.c}}>{x.v}</div>
+                        <div style={{fontSize:9,color:"#555"}}>{x.l}</div>
                       </div>
                     ))}
                   </div>
                 </div>
                 {display.filter(i=>i.owner===m).map(item=>{
                   const ac=getAutoComment(item);
+                  const cm=CRITICALITY_META[item.criticality||"Medium"];
                   return(
                     <div key={item.id} style={{background:"#161616",border:"1px solid #1e1e1e",borderRadius:8,padding:"9px 14px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
                         <Bdg m={TYPE_COLORS[item.type]}>{item.type}</Bdg>
                         <span style={{fontSize:12,color:"#ccc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title}</span>
                       </div>
-                      <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                        <span style={{fontSize:10,padding:"2px 6px",borderRadius:8,background:cm.bg,color:cm.text,fontWeight:700}}>{item.criticality||"Med"}</span>
                         <span style={{fontSize:10,padding:"2px 7px",borderRadius:10,background:ac.bg,color:ac.color,fontWeight:600}}>{ac.icon} {ac.label}</span>
                         <span style={{fontSize:10,color:"#555"}}>⏱ {getAgeing(item)}</span>
                         <Bdg m={STATUS_COLORS[item.status]}>{item.status}</Bdg>
@@ -612,27 +691,64 @@ function App(){
             <div style={{fontSize:17,fontWeight:800,color:"#fff",marginBottom:20}}>{editId?"Edit Program":"Add New Program"}</div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <div><label style={S.lbl}>Title *</label><input placeholder="Program title" value={form.title||""} onChange={e=>ff("title",e.target.value)} style={S.inp}/></div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
                 <div><label style={S.lbl}>Type</label><select value={form.type||""} onChange={e=>ff("type",e.target.value)} style={S.inp}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
                 <div><label style={S.lbl}>Owner</label><select value={form.owner||""} onChange={e=>ff("owner",e.target.value)} style={S.inp}>{MEMBERS.map(m=><option key={m}>{m}</option>)}</select></div>
+                <div><label style={S.lbl}>Criticality</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {CRITICALITIES.map(c=>{
+                      const cm=CRITICALITY_META[c];
+                      const sel=form.criticality===c;
+                      return <button key={c} type="button" onClick={()=>ff("criticality",c)}
+                        style={{flex:1,padding:"9px 4px",borderRadius:8,border:`1px solid ${sel?cm.text:"#2a2a2a"}`,background:sel?cm.bg:"transparent",color:sel?cm.text:"#555",fontSize:12,fontWeight:700,cursor:"pointer"}}>{c}</button>;
+                    })}
+                  </div>
+                </div>
               </div>
+
               <div>
                 <label style={S.lbl}>Program / Control Month</label>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <select value={form.controlMonth||""} onChange={e=>ff("controlMonth",e.target.value)} style={S.inp}>{MONTHS.map(m=><option key={m}>{m}</option>)}</select>
                   <input placeholder="Year e.g. 2026" value={form.controlYear||""} onChange={e=>ff("controlYear",e.target.value)} style={S.inp} maxLength={4}/>
                 </div>
-                <div style={{fontSize:10,color:"#555",marginTop:4}}>This drives charts and month filters</div>
               </div>
+
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
                 <div><label style={S.lbl}>Start Date</label><input type="date" value={form.startDate||""} onChange={e=>ff("startDate",e.target.value)} style={S.inp}/></div>
                 <div><label style={S.lbl}>Due Date</label><input type="date" value={form.dueDate||""} onChange={e=>ff("dueDate",e.target.value)} style={S.inp}/></div>
                 <div><label style={S.lbl}>Closed Date</label><input type="date" value={form.closedDate||""} onChange={e=>ff("closedDate",e.target.value)} style={S.inp}/></div>
               </div>
+
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                <div><label style={S.lbl}>Status</label><select value={form.status||""} onChange={e=>ff("status",e.target.value)} style={S.inp}>{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
+                <div><label style={S.lbl}>Status</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {STATUSES.map(s=>{
+                      const sm=STATUS_COLORS[s];
+                      const sel=form.status===s;
+                      return <button key={s} type="button" onClick={()=>ff("status",s)}
+                        style={{flex:1,padding:"9px 4px",borderRadius:8,border:`1px solid ${sel?sm.dot:"#2a2a2a"}`,background:sel?sm.bg:"transparent",color:sel?sm.text:"#555",fontSize:12,fontWeight:700,cursor:"pointer"}}>{s}</button>;
+                    })}
+                  </div>
+                </div>
                 <div><label style={S.lbl}>₹ Impact (Cr)</label><input placeholder="e.g. 45" value={form.impact||""} onChange={e=>ff("impact",e.target.value)} style={S.inp}/></div>
               </div>
+
+              {/* Dependencies multi-select */}
+              <div>
+                <label style={S.lbl}>Dependencies (select all that apply)</label>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {DEPENDENCIES.map(dep=>{
+                    const sel=(form.dependencies||[]).includes(dep);
+                    return <button key={dep} type="button" onClick={()=>toggleDep(dep)}
+                      style={{padding:"5px 10px",borderRadius:20,border:`1px solid ${sel?"#818cf8":"#2a2a2a"}`,background:sel?"#1a1a3e":"transparent",color:sel?"#818cf8":"#555",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                      {sel?"✓ ":""}{dep}
+                    </button>;
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label style={S.lbl}>Progress</label>
                 <div style={{display:"flex",alignItems:"center",gap:10,...S.inp,padding:"8px 14px"}}>
@@ -640,10 +756,12 @@ function App(){
                   <span style={{fontSize:13,color:"#e11d74",fontWeight:700,minWidth:36}}>{form.progress||0}%</span>
                 </div>
               </div>
+
               <div style={{background:"#0d0d0d",borderRadius:10,padding:"10px 14px",border:"1px solid #1e1e1e"}}>
                 <label style={S.lbl}>Auto Comment Preview</label>
                 {(()=>{const ac=getAutoComment(form);return <span style={{fontSize:12,padding:"3px 10px",borderRadius:12,background:ac.bg,color:ac.color,fontWeight:600}}>{ac.icon} {ac.label}</span>;})()}
               </div>
+
               <div><label style={S.lbl}>Manual Comment</label><textarea placeholder="Additional notes..." rows={2} value={form.manualComment||""} onChange={e=>ff("manualComment",e.target.value)} style={{...S.inp,resize:"none"}}/></div>
               <div><label style={S.lbl}>Risk / Blocker</label><input placeholder="Any risks or blockers?" value={form.riskBlocker||""} onChange={e=>ff("riskBlocker",e.target.value)} style={S.inp}/></div>
               <div><label style={S.lbl}>Notes</label><textarea placeholder="Additional notes..." rows={2} value={form.notes||""} onChange={e=>ff("notes",e.target.value)} style={{...S.inp,resize:"none"}}/></div>
